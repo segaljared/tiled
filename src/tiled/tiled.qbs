@@ -156,6 +156,8 @@ QtGuiApplication {
         "createpolygonobjecttool.h",
         "createpolylineobjecttool.cpp",
         "createpolylineobjecttool.h",
+        "createpuzzletool.cpp",
+        "createpuzzletool.h",
         "createrectangleobjecttool.cpp",
         "createrectangleobjecttool.h",
         "createscalableobjecttool.cpp",
@@ -222,6 +224,8 @@ QtGuiApplication {
         "mapobjectitem.h",
         "mapobjectmodel.cpp",
         "mapobjectmodel.h",
+        "mappuzzlemodel.cpp",
+        "mappuzzlemodel.h",
         "mapscene.cpp",
         "mapscene.h",
         "mapsdock.cpp",
@@ -283,6 +287,8 @@ QtGuiApplication {
         "propertiesdock.h",
         "propertybrowser.cpp",
         "propertybrowser.h",
+        "puzzletypedock.cpp",
+        "puzzletypedock.h",
         "raiselowerhelper.cpp",
         "raiselowerhelper.h",
         "randompicker.h",
@@ -406,6 +412,9 @@ QtGuiApplication {
         condition: qbs.targetOS.contains("macos")
         files: [
             "Info.plist",
+            "addpuzzledialog.cpp",
+            "addpuzzledialog.h",
+            "addpuzzledialog.ui",
             "macsupport.h",
             "macsupport.mm",
         ]

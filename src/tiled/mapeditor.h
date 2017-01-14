@@ -40,6 +40,10 @@ namespace Tiled {
 
 class Terrain;
 
+namespace Custom {
+class PuzzleTypeDock;
+}
+
 namespace Internal {
 
 class AbstractTool;
@@ -134,6 +138,7 @@ private:
     TilesetDock *mTilesetDock;
     TerrainDock *mTerrainDock;
     MiniMapDock* mMiniMapDock;
+    Custom::PuzzleTypeDock* mPuzzleTypeDock;
     QDockWidget *mTileStampsDock;
     QComboBox *mLayerComboBox;
     Zoomable *mZoomable;

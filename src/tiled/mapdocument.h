@@ -47,6 +47,12 @@ class MapFormat;
 class Terrain;
 class Tile;
 
+namespace Custom {
+
+class MapPuzzleModel;
+
+}
+
 namespace Internal {
 
 class LayerModel;
@@ -168,6 +174,8 @@ public:
     LayerModel *layerModel() const { return mLayerModel; }
 
     MapObjectModel *mapObjectModel() const { return mMapObjectModel; }
+
+    Custom::MapPuzzleModel *mapPuzzleModel() const { return mMapPuzzleModel; }
 
     TerrainModel *terrainModel() const { return mTerrainModel; }
 
@@ -328,6 +336,7 @@ private:
     MapRenderer *mRenderer;
     int mCurrentLayerIndex;
     MapObjectModel *mMapObjectModel;
+    Custom::MapPuzzleModel *mMapPuzzleModel;
     TerrainModel *mTerrainModel;
 };
 

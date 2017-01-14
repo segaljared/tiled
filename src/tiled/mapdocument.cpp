@@ -35,6 +35,7 @@
 #include "isometricrenderer.h"
 #include "layermodel.h"
 #include "mapobjectmodel.h"
+#include "mappuzzlemodel.h"
 #include "map.h"
 #include "mapobject.h"
 #include "movelayer.h"
@@ -70,6 +71,7 @@ MapDocument::MapDocument(Map *map, const QString &fileName)
     , mLayerModel(new LayerModel(this))
     , mRenderer(nullptr)
     , mMapObjectModel(new MapObjectModel(this))
+    , mMapPuzzleModel(new Custom::MapPuzzleModel(this))
     , mTerrainModel(new TerrainModel(this, this))
 {
     mCurrentObject = map;
@@ -106,6 +108,8 @@ MapDocument::MapDocument(Map *map, const QString &fileName)
             SLOT(onMapObjectModelRowsInsertedOrRemoved(QModelIndex,int,int)));
     connect(mMapObjectModel, SIGNAL(rowsMoved(QModelIndex,int,int,QModelIndex,int)),
             SLOT(onObjectsMoved(QModelIndex,int,int,QModelIndex,int)));
+
+    mMapPuzzleModel->setMapDocument(this);
 
     // Register tileset references
     TilesetManager *tilesetManager = TilesetManager::instance();

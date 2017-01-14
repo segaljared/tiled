@@ -26,6 +26,7 @@
 #include "createobjecttool.h"
 #include "createpolygonobjecttool.h"
 #include "createpolylineobjecttool.h"
+#include "createpuzzletool.h"
 #include "createrectangleobjecttool.h"
 #include "createtileobjecttool.h"
 #include "editpolygontool.h"
@@ -46,6 +47,7 @@
 #include "painttilelayer.h"
 #include "preferences.h"
 #include "propertiesdock.h"
+#include "puzzletypedock.h"
 #include "selectsametiletool.h"
 #include "stampbrush.h"
 #include "terrain.h"
@@ -143,6 +145,7 @@ MapEditor::MapEditor(QObject *parent)
     , mCurrentMapDocument(nullptr)
     , mMapsDock(new MapsDock(mMainWindow))
     , mObjectsDock(new ObjectsDock(mMainWindow))
+    , mPuzzleTypeDock(new Tiled::Custom::PuzzleTypeDock(mMainWindow))
     , mTilesetDock(new TilesetDock(mMainWindow))
     , mTerrainDock(new TerrainDock(mMainWindow))
     , mMiniMapDock(new MiniMapDock(mMainWindow))
@@ -178,6 +181,7 @@ MapEditor::MapEditor(QObject *parent)
     CreateObjectTool *ellipseObjectsTool = new CreateEllipseObjectTool(this);
     CreateObjectTool *polygonObjectsTool = new CreatePolygonObjectTool(this);
     CreateObjectTool *polylineObjectsTool = new CreatePolylineObjectTool(this);
+    CreateObjectTool *puzzleObjectsTool = new Tiled::Custom::CreatePuzzleTool(this, mPuzzleTypeDock);
 
     mToolsToolBar->addAction(mToolManager->registerTool(mStampBrush));
     mToolsToolBar->addAction(mToolManager->registerTool(mTerrainBrush));
@@ -195,6 +199,8 @@ MapEditor::MapEditor(QObject *parent)
     mToolsToolBar->addAction(mToolManager->registerTool(polylineObjectsTool));
     mToolsToolBar->addAction(mToolManager->registerTool(tileObjectsTool));
     mToolsToolBar->addSeparator();
+    mToolsToolBar->addAction(mToolManager->registerTool(puzzleObjectsTool));
+    mToolsToolBar->addSeparator();
     mToolsToolBar->addAction(mToolManager->registerTool(new LayerOffsetTool(this)));
 
     mMainWindow->addToolBar(mMainToolBar);
@@ -211,10 +217,12 @@ MapEditor::MapEditor(QObject *parent)
     mMainWindow->addDockWidget(Qt::RightDockWidgetArea, mTerrainDock);
     mMainWindow->addDockWidget(Qt::RightDockWidgetArea, mTilesetDock);
     mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, mTileStampsDock);
+    mMainWindow->addDockWidget(Qt::RightDockWidgetArea, mPuzzleTypeDock);
 
     mMainWindow->tabifyDockWidget(mMiniMapDock, mObjectsDock);
     mMainWindow->tabifyDockWidget(mObjectsDock, mLayerDock);
     mMainWindow->tabifyDockWidget(mTerrainDock, mTilesetDock);
+    mMainWindow->tabifyDockWidget(mTilesetDock, mPuzzleTypeDock);
 
     mMapsDock->setVisible(false);
     mTileStampsDock->setVisible(false);
@@ -231,6 +239,7 @@ MapEditor::MapEditor(QObject *parent)
     connect(mWidgetStack, &QStackedWidget::currentChanged, this, &MapEditor::currentWidgetChanged);
     connect(mToolManager, &ToolManager::statusInfoChanged, this, &MapEditor::updateStatusInfoLabel);
     connect(mTilesetDock, &TilesetDock::currentTileChanged, tileObjectsTool, &CreateObjectTool::setTile);
+    connect(mTilesetDock, &TilesetDock::currentTileChanged, puzzleObjectsTool, &CreateObjectTool::setTile);
     connect(mTilesetDock, &TilesetDock::stampCaptured, this, &MapEditor::setStamp);
     connect(mStampBrush, &StampBrush::stampCaptured, this, &MapEditor::setStamp);
 
