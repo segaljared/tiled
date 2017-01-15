@@ -22,3 +22,8 @@ PuzzleTypeDock::PuzzleTypeDock(QWidget *parent)
     setWindowTitle(tr("Puzzles"));
     label->setText(tr("Test"));
 }
+
+CreatePuzzleTool::tileSelected PuzzleTypeDock::getNextTool()
+{
+    return nullptr;
+}

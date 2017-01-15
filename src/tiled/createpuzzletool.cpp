@@ -1,6 +1,7 @@
 #include "createpuzzletool.h"
 
 #include "mapdocument.h"
+#include "mapobjectitem.h"
 #include "mappuzzlemodel.h"
 #include "mapscene.h"
 #include "puzzletypedock.h"
@@ -8,6 +9,7 @@
 
 using namespace Tiled;
 using namespace Tiled::Custom;
+using namespace Tiled::Internal;
 
 CreatePuzzleTool::CreatePuzzleTool(QObject *parent, PuzzleTypeDock *typeDock)
     : CreateTileObjectTool(parent)
@@ -53,4 +55,97 @@ MapObject *CreatePuzzleTool::createNewMapObject()
     newMapObject->setProperty(MapPuzzleModel::PUZZLE_PART, newName);
     mapScene()->mapDocument()->mapPuzzleModel()->addPuzzlePart(newMapObject, newName);
     return newMapObject;
+}
+
+void CreatePuzzleTool::keyPressed(QKeyEvent *event)
+{
+    if (mMode == PuzzleToolMode::ApplyProperty)
+    {
+        switch (event->key()) {
+        case Qt::Key_Enter:
+        case Qt::Key_Return:
+            if (!(mSelected = mTypeDock->getNextTool()))
+            {
+                changeMode(PuzzleToolMode::Create);
+            }
+            break;
+        case Qt::Key_Escape:
+            changeMode(PuzzleToolMode::Create);
+            break;
+        }
+    }
+    else
+    {
+        CreateTileObjectTool::keyPressed(event);
+    }
+}
+
+void CreatePuzzleTool::mouseMoved(const QPointF &pos, Qt::KeyboardModifiers modifiers)
+{
+    switch (mMode)
+    {
+    case PuzzleToolMode::Create:
+        CreateTileObjectTool::mouseMoved(pos, modifiers);
+        break;
+    case PuzzleToolMode::ApplyProperty:
+        AbstractObjectTool::mouseMoved(pos, modifiers);
+        break;
+    }
+
+    refreshCursor();
+}
+
+void CreatePuzzleTool::mousePressed(QGraphicsSceneMouseEvent *event)
+{
+    switch (mMode)
+    {
+    case PuzzleToolMode::Create:
+        CreateTileObjectTool::mousePressed(event);
+        break;
+    case PuzzleToolMode::ApplyProperty:
+        if (event->button() != Qt::LeftButton) {
+            AbstractObjectTool::mousePressed(event);
+            return;
+        }
+        applyPropertyMousePressed(event);
+        break;
+    }
+}
+
+void CreatePuzzleTool::mouseReleased(QGraphicsSceneMouseEvent *event)
+{
+    if (mMode == PuzzleToolMode::Create)
+        CreateTileObjectTool::mouseReleased(event);
+}
+
+void CreatePuzzleTool::applyPropertyMousePressed(QGraphicsSceneMouseEvent *event)
+{
+    QPointF scenePosition = event->scenePos();
+    MapObjectItem *clickedItem = topMostObjectItemAt(scenePosition);
+    if (clickedItem)
+    {
+        MapObject *clickedObject = clickedItem->mapObject();
+        if (clickedObject && mSelected)
+        {
+            mSelected(clickedObject);
+        }
+    }
+}
+
+void CreatePuzzleTool::changeMode(PuzzleToolMode newMode)
+{
+    mMode = newMode;
+    refreshCursor();
+}
+
+void CreatePuzzleTool::refreshCursor()
+{
+    Qt::CursorShape cursorShape = Qt::ArrowCursor;
+    switch(mMode)
+    {
+    case PuzzleToolMode::ApplyProperty:
+        cursorShape = Qt::PointingHandCursor;
+    }
+    if (cursor().shape() != cursorShape)
+        setCursor(cursorShape);
 }
