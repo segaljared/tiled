@@ -7,6 +7,7 @@
 #include "mapobject.h"
 #include "mapobjectmodel.h"
 #include "objectgroup.h"
+#include "puzzletypemanager.h"
 
 #include <qstring.h>
 
@@ -121,6 +122,7 @@ bool MapPuzzleModel::setData(const QModelIndex &index, const QVariant &value, in
                                            QList<Object*>() << mapObject,
                                            PUZZLE_PART_TYPE,
                                            s));
+                onPuzzleChanged(index);
                 undo->endMacro();
 
                 return true;
@@ -217,7 +219,10 @@ Qt::ItemFlags MapPuzzleModel::flags(const QModelIndex &index) const
 QModelIndex MapPuzzleModel::index(const QString &name) const
 {
     PartOrPuzzle *puzzle = mPuzzles[name];
-    Q_ASSERT(puzzle);
+    if (!puzzle)
+    {
+        return QModelIndex();
+    }
     const int row = mFullPuzzles.indexOf(puzzle);
     return createIndex(row, 0, puzzle);
 }
@@ -225,9 +230,15 @@ QModelIndex MapPuzzleModel::index(const QString &name) const
 QModelIndex MapPuzzleModel::index(MapObject *o, int column) const
 {
     PartOrPuzzle *puzzlePart = mPuzzleParts[o];
-    Q_ASSERT(puzzlePart);
+    if (!puzzlePart)
+    {
+        return QModelIndex();
+    }
     PartOrPuzzle *puzzle = mPuzzles[puzzlePart->mName];
-    Q_ASSERT(puzzle);
+    if (!puzzle)
+    {
+        return QModelIndex();
+    }
     const int row = puzzle->mParts->indexOf(puzzlePart);
     return createIndex(row, column, puzzlePart);
 }
@@ -345,6 +356,13 @@ void MapPuzzleModel::setMapDocument(MapDocument *mapDocument)
                     PartOrPuzzle *puzzlePart = new PartOrPuzzle(mo, puzzleName);
                     puzzle->mParts->append(puzzlePart);
                     mPuzzleParts.insert(mo, puzzlePart);
+                    if (mo->hasProperty(PUZZLE_ROOT))
+                    {
+                        if (mo->hasProperty(PUZZLE_ROOT))
+                        {
+                            puzzle->mPuzzleType = mo->propertyAsString(PUZZLE_ROOT);
+                        }
+                    }
                 }
             }
         }
@@ -379,6 +397,7 @@ bool MapPuzzleModel::changePuzzleName(PartOrPuzzle* partOrPuzzle, const QString 
         mPuzzleNames.replace(nameIndex, newName);
         QModelIndex index = this->index(newName);
         emit dataChanged(index, index);
+        onPuzzleChanged(index);
         undo->endMacro();
         return true;
     }
@@ -487,6 +506,10 @@ void MapPuzzleModel::propertiesChanged(Object *object)
 
 void MapPuzzleModel::onPropertyChanged(Object *object, const QString &name)
 {
+    if (mInChange)
+    {
+        return;
+    }
     MapObject *mo = static_cast<MapObject*>(object);
     if (name == PUZZLE_PART)
     {
@@ -495,8 +518,13 @@ void MapPuzzleModel::onPropertyChanged(Object *object, const QString &name)
     else if(name == PUZZLE_PART_TYPE || name == PUZZLE_ROOT)
     {
         QModelIndex index = this->index(mo);
+        if (!index.isValid())
+        {
+            return;
+        }
         QModelIndex indexEnd = this->index(mo, 1);
         emit dataChanged(index, indexEnd);
+        onPuzzleChanged(index);
     }
 }
 
@@ -539,6 +567,7 @@ void MapPuzzleModel::removePuzzlePart(PartOrPuzzle *puzzlePart)
         mPuzzleNames.removeOne(name);
         endRemoveRows();
     }
+    onPuzzleChanged(this->index(name));
 }
 
 void MapPuzzleModel::internalAddPuzzlePart(MapObject *o, const QString &puzzleName)
@@ -549,6 +578,10 @@ void MapPuzzleModel::internalAddPuzzlePart(MapObject *o, const QString &puzzleNa
         const int puzzleRow = mFullPuzzles.count();
         beginInsertRows(QModelIndex(), puzzleRow, puzzleRow);
         puzzle = new PartOrPuzzle(puzzleName);
+        if (o->hasProperty(PUZZLE_ROOT))
+        {
+            puzzle->mPuzzleType = o->propertyAsString(PUZZLE_ROOT);
+        }
         mFullPuzzles.append(puzzle);
         mPuzzleNames.append(puzzleName);
         mPuzzles.insert(puzzleName, puzzle);
@@ -559,4 +592,18 @@ void MapPuzzleModel::internalAddPuzzlePart(MapObject *o, const QString &puzzleNa
     PartOrPuzzle *puzzlePart = new PartOrPuzzle(o, puzzleName);
     puzzle->mParts->append(puzzlePart);
     endInsertRows();
+    onPuzzleChanged(index(puzzleName));
+}
+
+void MapPuzzleModel::onPuzzleChanged(const QModelIndex &index)
+{
+    if (index.parent().isValid())
+    {
+        onPuzzleChanged(index.parent());
+    }
+    else if (index.isValid())
+    {
+        PartOrPuzzle *puzzle = this->toPuzzle(index);
+        PuzzleTypeManager::instance()->puzzleChanged(puzzle, mMapDocument);
+    }
 }

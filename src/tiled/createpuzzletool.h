@@ -7,6 +7,12 @@
 
 namespace Tiled {
 
+namespace Internal {
+
+class MapDocument;
+
+}
+
 namespace Custom {
 
 class PuzzleTypeDock;
@@ -15,11 +21,19 @@ class CreatePuzzleTool : public Tiled::Internal::CreateTileObjectTool
 {
     Q_OBJECT
 public:
-    typedef void (*tileSelected)(MapObject *);
+    enum PuzzleToolMode { CreateNewPuzzle, CreatePuzzlePart, ApplyProperty };
 
-    enum PuzzleToolMode { Create, ApplyProperty };
+    class TileSelectedObserver
+    {
+    public:
+        virtual void selected(Internal::MapDocument *document, MapObject *mapObject, const QString &puzzleName) = 0;
+
+        virtual PuzzleToolMode getMode() = 0;
+    };
 
     CreatePuzzleTool(QObject *parent, PuzzleTypeDock *typeDock);
+
+    void setNewMode(PuzzleToolMode newMode, TileSelectedObserver *tileSelectedObserver);
 
     void activate(Tiled::Internal::MapScene *scene) override;
 
@@ -36,17 +50,22 @@ public:
 
 protected:
     MapObject *createNewMapObject() override;
+    void cancelNewMapObject() override;
+    void finishNewMapObject() override;
+
     virtual void applyPropertyMousePressed(QGraphicsSceneMouseEvent *event);
 
 private:
     void changeMode(PuzzleToolMode newMode);
+    void moveToNextTool();
     void refreshCursor();
 
     PuzzleTypeDock *mTypeDock;
-    AddPuzzleDialog::PuzzleType mPuzzleType;
+    QString mPuzzleType;
+    QString mCurrentPuzzleName;
 
     PuzzleToolMode mMode;
-    tileSelected mSelected;
+    TileSelectedObserver *mSelectedObserver;
 };
 
 }

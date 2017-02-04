@@ -1,6 +1,8 @@
 #include "addpuzzledialog.h"
 #include "ui_addpuzzledialog.h"
 
+#include "puzzletypemanager.h"
+
 #include <QMetaEnum>
 
 AddPuzzleDialog::AddPuzzleDialog(QWidget *parent) :
@@ -9,10 +11,10 @@ AddPuzzleDialog::AddPuzzleDialog(QWidget *parent) :
 {
     mUI->setupUi(this);
 
-    QMetaEnum metaEnum = QMetaEnum::fromType<AddPuzzleDialog::PuzzleType>();
-    for(int i = 0; i < metaEnum.keyCount(); i++)
+
+    for(QString item : Tiled::Custom::PuzzleTypeManager::instance()->puzzleTypes())
     {
-        mUI->puzzleType->addItem(tr(metaEnum.key(i)), metaEnum.value(i));
+        mUI->puzzleType->addItem(item, item);
     }
 }
 
@@ -21,7 +23,7 @@ AddPuzzleDialog::~AddPuzzleDialog()
     delete mUI;
 }
 
-AddPuzzleDialog::PuzzleType AddPuzzleDialog::puzzleType() const
+QString AddPuzzleDialog::puzzleType() const
 {
-    return static_cast<PuzzleType>(mUI->puzzleType->currentData().toInt());
+    return mUI->puzzleType->currentData().toString();
 }

@@ -48,6 +48,7 @@
 #include "preferences.h"
 #include "propertiesdock.h"
 #include "puzzletypedock.h"
+#include "puzzletypemanager.h"
 #include "selectsametiletool.h"
 #include "stampbrush.h"
 #include "terrain.h"
@@ -181,7 +182,9 @@ MapEditor::MapEditor(QObject *parent)
     CreateObjectTool *ellipseObjectsTool = new CreateEllipseObjectTool(this);
     CreateObjectTool *polygonObjectsTool = new CreatePolygonObjectTool(this);
     CreateObjectTool *polylineObjectsTool = new CreatePolylineObjectTool(this);
-    CreateObjectTool *puzzleObjectsTool = new Tiled::Custom::CreatePuzzleTool(this, mPuzzleTypeDock);
+    Tiled::Custom::CreatePuzzleTool *puzzleObjectsTool = new Tiled::Custom::CreatePuzzleTool(this, mPuzzleTypeDock);
+    mPuzzleTypeDock->setPuzzleTool(puzzleObjectsTool);
+    Tiled::Custom::PuzzleTypeManager::instance()->initialize(QLatin1String("."));
 
     mToolsToolBar->addAction(mToolManager->registerTool(mStampBrush));
     mToolsToolBar->addAction(mToolManager->registerTool(mTerrainBrush));

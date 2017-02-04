@@ -292,6 +292,8 @@ QtGuiApplication {
         "propertybrowser.h",
         "puzzletypedock.cpp",
         "puzzletypedock.h",
+        "puzzletypemanager.cpp",
+        "puzzletypemanager.h",
         "raiselowerhelper.cpp",
         "raiselowerhelper.h",
         "randompicker.h",

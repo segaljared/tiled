@@ -27,7 +27,8 @@ public:
     {
         PartOrPuzzle(const QString& name)
             : mName(name),
-              mPuzzlePartType(tr(""))
+              mPuzzlePartType(tr("")),
+              mPart(nullptr)
         {
             mParts = new QList<PartOrPuzzle*>();
         }
@@ -35,7 +36,8 @@ public:
         PartOrPuzzle(MapObject *o, const QString& name)
             : mName(name),
               mPuzzlePartType(tr("")),
-              mPart(o)
+              mPart(o),
+              mParts(nullptr)
         {
             if (o->hasProperty(PUZZLE_PART_TYPE))
             {
@@ -52,6 +54,7 @@ public:
         QList<PartOrPuzzle*>* mParts;
         MapObject *mPart;
         QString mPuzzlePartType;
+        QString mPuzzleType;
     };
 
     MapPuzzleModel(QObject *parent = nullptr);
@@ -96,6 +99,9 @@ public:
 
     const QList<QString> &puzzleNames() const { return mPuzzleNames; }
 
+    void startChange() { mInChange = true; }
+    void endChange() {mInChange = false; }
+
 private slots:
     void objectsAdded(const QList<MapObject*> &objects);
     void objectsRemoved(const QList<MapObject*> &objects);
@@ -110,6 +116,8 @@ private:
     void internalAddPuzzlePart(MapObject *o, const QString &puzzleName);
     void onPropertyChanged(Object *object, const QString &name);
 
+    void onPuzzleChanged(const QModelIndex &index);
+
     Internal::MapDocument *mMapDocument;
 
     QList<QString> mPuzzleNames;
@@ -118,6 +126,7 @@ private:
     QMap<MapObject*, PartOrPuzzle*> mPuzzleParts;
 
     QIcon mPuzzleRootIcon;
+    bool mInChange;
 };
 
 }

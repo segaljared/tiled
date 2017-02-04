@@ -14,15 +14,23 @@ using namespace Tiled::Internal;
 CreatePuzzleTool::CreatePuzzleTool(QObject *parent, PuzzleTypeDock *typeDock)
     : CreateTileObjectTool(parent)
     , mTypeDock(typeDock)
-    , mPuzzleType(AddPuzzleDialog::PuzzleType::FloorTriggeredDoors)
+    , mPuzzleType(QLatin1String("doorPuzzle"))
+    , mSelectedObserver(nullptr)
+    , mMode(PuzzleToolMode::CreateNewPuzzle)
+    , mCurrentPuzzleName()
 {
     setIcon(QIcon(QLatin1String(":images/24x24/puzzle-piece.png")));
     languageChanged();
 }
 
+void CreatePuzzleTool::setNewMode(PuzzleToolMode newMode, TileSelectedObserver *tileSelectedObserver)
+{
+    mSelectedObserver = tileSelectedObserver;
+    changeMode(newMode);
+}
+
 void CreatePuzzleTool::activate(Tiled::Internal::MapScene *scene)
 {
-    mTypeDock->raise();
     CreateObjectTool::activate(scene);
 }
 
@@ -34,11 +42,24 @@ void CreatePuzzleTool::languageChanged()
 
 void CreatePuzzleTool::startNewMapObject(const QPointF &pos, ObjectGroup *objectGroup)
 {
-    AddPuzzleDialog dialog(mTypeDock);
-    if (dialog.exec() == AddPuzzleDialog::Accepted)
+    switch(mMode)
     {
-        mPuzzleType = dialog.puzzleType();
+    case PuzzleToolMode::CreateNewPuzzle:
+    {
+        AddPuzzleDialog dialog(mTypeDock);
+        if (dialog.exec() == AddPuzzleDialog::Accepted)
+        {
+            mPuzzleType = dialog.puzzleType();
+            mSelectedObserver = mTypeDock->setPuzzleType(mPuzzleType);
+            CreateObjectTool::startNewMapObject(pos, objectGroup);
+        }
+        break;
+    }
+    case PuzzleToolMode::CreatePuzzlePart:
         CreateObjectTool::startNewMapObject(pos, objectGroup);
+        break;
+    default:
+        break;
     }
 }
 
@@ -47,13 +68,23 @@ MapObject *CreatePuzzleTool::createNewMapObject()
     if (!mTile)
         return nullptr;
 
+    mapScene()->mapDocument()->mapPuzzleModel()->startChange();
     MapObject *newMapObject = new MapObject;
     newMapObject->setShape(MapObject::Rectangle);
     newMapObject->setCell(Cell(mTile));
     newMapObject->setSize(mTile->size());
-    QString newName = mapScene()->mapDocument()->mapPuzzleModel()->getNextPuzzleName();
-    newMapObject->setProperty(MapPuzzleModel::PUZZLE_PART, newName);
-    mapScene()->mapDocument()->mapPuzzleModel()->addPuzzlePart(newMapObject, newName);
+    switch (mMode)
+    {
+    case PuzzleToolMode::CreateNewPuzzle:
+        mCurrentPuzzleName = mapScene()->mapDocument()->mapPuzzleModel()->getNextPuzzleName();
+        newMapObject->setProperty(MapPuzzleModel::PUZZLE_ROOT, mPuzzleType);
+        break;
+    default:
+        break;
+    }
+
+    newMapObject->setProperty(MapPuzzleModel::PUZZLE_PART, mCurrentPuzzleName);
+    mSelectedObserver->selected(mapScene()->mapDocument(), newMapObject, mCurrentPuzzleName);
     return newMapObject;
 }
 
@@ -64,13 +95,10 @@ void CreatePuzzleTool::keyPressed(QKeyEvent *event)
         switch (event->key()) {
         case Qt::Key_Enter:
         case Qt::Key_Return:
-            if (!(mSelected = mTypeDock->getNextTool()))
-            {
-                changeMode(PuzzleToolMode::Create);
-            }
+            moveToNextTool();
             break;
         case Qt::Key_Escape:
-            changeMode(PuzzleToolMode::Create);
+            changeMode(PuzzleToolMode::CreateNewPuzzle);
             break;
         }
     }
@@ -84,7 +112,8 @@ void CreatePuzzleTool::mouseMoved(const QPointF &pos, Qt::KeyboardModifiers modi
 {
     switch (mMode)
     {
-    case PuzzleToolMode::Create:
+    case PuzzleToolMode::CreateNewPuzzle:
+    case PuzzleToolMode::CreatePuzzlePart:
         CreateTileObjectTool::mouseMoved(pos, modifiers);
         break;
     case PuzzleToolMode::ApplyProperty:
@@ -99,7 +128,8 @@ void CreatePuzzleTool::mousePressed(QGraphicsSceneMouseEvent *event)
 {
     switch (mMode)
     {
-    case PuzzleToolMode::Create:
+    case PuzzleToolMode::CreateNewPuzzle:
+    case PuzzleToolMode::CreatePuzzlePart:
         CreateTileObjectTool::mousePressed(event);
         break;
     case PuzzleToolMode::ApplyProperty:
@@ -114,8 +144,32 @@ void CreatePuzzleTool::mousePressed(QGraphicsSceneMouseEvent *event)
 
 void CreatePuzzleTool::mouseReleased(QGraphicsSceneMouseEvent *event)
 {
-    if (mMode == PuzzleToolMode::Create)
+    if (mMode != PuzzleToolMode::ApplyProperty)
         CreateTileObjectTool::mouseReleased(event);
+}
+
+void CreatePuzzleTool::cancelNewMapObject()
+{
+    CreateTileObjectTool::cancelNewMapObject();
+    mCurrentPuzzleName = QString();
+}
+
+void CreatePuzzleTool::finishNewMapObject()
+{
+    bool created = false;
+    if (currentObjectGroup() && !mCurrentPuzzleName.isNull())
+    {
+        MapObject *newMapObject = mNewMapObjectItem->mapObject();
+        mapScene()->mapDocument()->mapPuzzleModel()->addPuzzlePart(newMapObject, mCurrentPuzzleName);
+        created = true;
+    }
+    CreateTileObjectTool::finishNewMapObject();
+    mapScene()->mapDocument()->mapPuzzleModel()->endChange();
+    if (created)
+    {
+        moveToNextTool();
+        mTypeDock->raise();
+    }
 }
 
 void CreatePuzzleTool::applyPropertyMousePressed(QGraphicsSceneMouseEvent *event)
@@ -125,9 +179,9 @@ void CreatePuzzleTool::applyPropertyMousePressed(QGraphicsSceneMouseEvent *event
     if (clickedItem)
     {
         MapObject *clickedObject = clickedItem->mapObject();
-        if (clickedObject && mSelected)
+        if (clickedObject && mSelectedObserver && !mCurrentPuzzleName.isNull())
         {
-            mSelected(clickedObject);
+            mSelectedObserver->selected(mapScene()->mapDocument(), clickedObject, mCurrentPuzzleName);
         }
     }
 }
@@ -148,4 +202,16 @@ void CreatePuzzleTool::refreshCursor()
     }
     if (cursor().shape() != cursorShape)
         setCursor(cursorShape);
+}
+
+void CreatePuzzleTool::moveToNextTool()
+{
+    if (!(mSelectedObserver = mTypeDock->getNextTool()))
+    {
+        changeMode(PuzzleToolMode::CreateNewPuzzle);
+    }
+    else
+    {
+        changeMode(mSelectedObserver->getMode());
+    }
 }
