@@ -5,6 +5,10 @@
 #include "mapobject.h"
 #include "mappuzzlemodel.h"
 
+#include <QFile>
+#include <QRegularExpressionMatchIterator>
+#include <QTextStream>
+
 using namespace Tiled;
 using namespace Tiled::Custom;
 using namespace Tiled::Internal;
@@ -12,6 +16,9 @@ using namespace Tiled::Internal;
 PuzzleTypeManager *PuzzleTypeManager::mInstance;
 
 PuzzleTypeManager::PuzzleTypeManager()
+    : mIdentifierRegex(QLatin1Literal("\\{id:(?<id>[^\\s\\{\\}]+)\\}")),
+      mCountRegex(QLatin1Literal("\\{count:(?<partType>[^\\s\\{\\}]+)\\}")),
+      mIndexRegex(QLatin1Literal("\\{index\\}"))
 {
 }
 
@@ -32,7 +39,32 @@ void PuzzleTypeManager::deleteInstance()
 
 void PuzzleTypeManager::initialize(const QString &path)
 {
-    mPuzzleTypeNames.append(QLatin1String("doorPuzzle"));
+    QFile puzzleFile(path);
+    if (!puzzleFile.open(QIODevice::ReadOnly))
+    {
+        PuzzleInformation *doorInfo = new PuzzleInformation(QLatin1String("doorPuzzle"));
+        doorInfo->addMinimum(QLatin1Literal("trigger"), 1);
+        doorInfo->addMinimum(QLatin1Literal("keyGen"), 1);
+        doorInfo->addMinimum(QLatin1Literal("door"), 1);
+        doorInfo->addMaximum(QLatin1Literal("trigger"), 1);
+        doorInfo->addMaximum(QLatin1Literal("keyGen"), 1);
+
+        doorInfo->setPartTypeMode(QLatin1Literal("trigger"), CreatePuzzleTool::PuzzleToolMode::CreateNewPuzzle);
+        doorInfo->setPartTypeMode(QLatin1Literal("keyGen"), CreatePuzzleTool::PuzzleToolMode::CreatePuzzlePart);
+        doorInfo->setPartTypeMode(QLatin1Literal("door"), CreatePuzzleTool::PuzzleToolMode::ApplyProperty);
+
+        doorInfo->addPuzzlePartEntry(QLatin1Literal("trigger"), QLatin1Literal("floorTrigger"), QLatin1Literal("{id:trigger}"));
+        doorInfo->addPuzzlePartEntry(QLatin1Literal("keyGen"), QLatin1Literal("isTriggeredBy"), QLatin1Literal("{id:trigger}"));
+        doorInfo->addPuzzlePartEntry(QLatin1Literal("keyGen"), QLatin1Literal("objectIdentifier"), QLatin1Literal("{id:keyGen}"));
+        doorInfo->addPuzzlePartEntry(QLatin1Literal("keyGen"), QLatin1Literal("randomKeyGen"), QLatin1Literal("{count:door}"));
+        doorInfo->addPuzzlePartEntry(QLatin1Literal("door"), QLatin1Literal("unlockedBy"), QLatin1Literal("({index}){id:keyGen}"));
+
+        mPuzzles[doorInfo->getName()] = doorInfo;
+    }
+
+    //READ STUFF
+
+    mPuzzleTypeNames = mPuzzles.keys();
 }
 
 const QList<QString> &PuzzleTypeManager::puzzleTypes()
@@ -42,85 +74,106 @@ const QList<QString> &PuzzleTypeManager::puzzleTypes()
 
 void PuzzleTypeManager::puzzleChanged(MapPuzzleModel::PartOrPuzzle *puzzle, MapDocument *mapDocument)
 {
-    if (puzzle->mPuzzleType == QLatin1String("doorPuzzle"))
+    const PuzzleInformation *puzzleInfo = mPuzzles[puzzle->mPuzzleType];
+    if (puzzleInfo)
     {
-        QList<MapPuzzleModel::PartOrPuzzle *> doors;
-        MapPuzzleModel::PartOrPuzzle *trigger = nullptr;
-        MapPuzzleModel::PartOrPuzzle *keyGen = nullptr;
+        QMap<QString, QList<MapPuzzleModel::PartOrPuzzle*>> parts;
         for (MapPuzzleModel::PartOrPuzzle *part : *(puzzle->mParts))
         {
-            if (part->mPuzzlePartType == QLatin1String("trigger"))
+            parts[part->mPuzzlePartType].append(part);
+        }
+        // verify minimums have been met
+        for (QString partType : puzzleInfo->getPuzzlePartTypes())
+        {
+            if (!puzzleInfo->isCountAllowed(partType, parts[partType].count()))
             {
-                trigger = part;
-            }
-            else if (part->mPuzzlePartType == QLatin1String("keyGen"))
-            {
-                keyGen = part;
-            }
-            else if (part->mPuzzlePartType == QLatin1String("door"))
-            {
-                doors.append(part);
+                return;
             }
         }
 
-        if (!trigger || !keyGen || doors.count() == 0)
+        QMap<MapPuzzleModel::PartOrPuzzle*, QMap<QString, QString>> appliedProperties;
+        QMap<QString, QString> identifiers;
+        // identifier pass
+        QMapIterator<QString, QList<MapPuzzleModel::PartOrPuzzle*>> iter(parts);
+        while (iter.hasNext())
         {
-            return;
+            iter.next();
+            QMap<QString, QString> entries = puzzleInfo->getPuzzlePartEntries(iter.key());
+            int index = 0;
+            for (MapPuzzleModel::PartOrPuzzle* part : iter.value())
+            {
+                QMapIterator<QString, QString> entryIter(entries);
+                QMap<QString, QString> properties = appliedProperties[part];
+                while (entryIter.hasNext())
+                {
+                    entryIter.next();
+                    QString entry = applyEntryNonIdentifiers(entryIter.value(), index, parts);
+                    addIdentifier(puzzle->mName, entry, identifiers);
+                    properties[entryIter.key()] = entry;
+                }
+                index++;
+            }
         }
 
         QUndoStack *undo = mapDocument->undoStack();
         undo->beginMacro(tr("Update puzzle"));
-        undo->push(new SetProperty(mapDocument,
-                                   QList<Object*>() << trigger->mPart,
-                                   QLatin1String("floorTrigger"),
-                                   puzzle->mName + QLatin1String("_trigger")));
-        undo->push(new SetProperty(mapDocument,
-                                   QList<Object*>() << keyGen->mPart,
-                                   QLatin1String("isTriggeredBy"),
-                                   puzzle->mName + QLatin1String("_trigger")));
-        undo->push(new SetProperty(mapDocument,
-                                   QList<Object*>() << keyGen->mPart,
-                                   QLatin1String("objectIdentifier"),
-                                   puzzle->mName + QLatin1String("_keyGen")));
-        undo->push(new SetProperty(mapDocument,
-                                   QList<Object*>() << keyGen->mPart,
-                                   QLatin1String("randomKeyGen"),
-                                   doors.length()));
-        int i = 0;
-        for (MapPuzzleModel::PartOrPuzzle *door : doors)
+
+        QMapIterator<MapPuzzleModel::PartOrPuzzle*, QMap<QString, QString>> partIter(appliedProperties);
+        while (partIter.hasNext())
         {
-            undo->push(new SetProperty(mapDocument,
-                                       QList<Object*>() << door->mPart,
-                                       QLatin1String("unlockedBy"),
-                                       QLatin1String("(") + QString::number(i) + QLatin1String(")") + puzzle->mName + QLatin1String("_keyGen")));
-            i++;
+            partIter.next();
+            QMapIterator<QString, QString> propIter(partIter.value());
+            while (propIter.hasNext())
+            {
+                propIter.next();
+                undo->push(new SetProperty(mapDocument,
+                                           QList<Object*>() << partIter.key()->mPart,
+                                           propIter.key(),
+                                           applyIdentifiers(propIter.value(), identifiers)));
+            }
         }
+
+        //QMapIterator<QString, QList<MapPuzzleModel::PartOrPuzzle*>> partIter(parts);
+        //while (partIter.hasNext())
+        //{
+        //    partIter.next();
+        //    QMap<QString, QString> entries = puzzleInfo->getPuzzlePartEntries(partIter.key());
+        //    int index = 0;
+        //    for (MapPuzzleModel::PartOrPuzzle * part : partIter.value())
+        //    {
+        //        QMapIterator<QString, QString> entryIter(entries);
+        //        while (entryIter.hasNext())
+        //        {
+        //            entryIter.next();
+        //            undo->push(new SetProperty(mapDocument,
+        //                                       QList<Object*>() << part->mPart,
+        //                                       entryIter.key(),
+        //                                       applyEntry(entryIter.value(), index, parts, identifiers)));
+        //        }
+        //        index++;
+        //    }
+        //}
+
         undo->endMacro();
     }
 }
 
 QList<QString> PuzzleTypeManager::puzzlePartTypes(const QString &puzzleType)
 {
-    if (puzzleType == QLatin1String("doorPuzzle"))
+    const PuzzleInformation *puzzleInfo = mPuzzles[puzzleType];
+    if (puzzleInfo)
     {
-        QList<QString> puzzlePartTypesList;
-        puzzlePartTypesList.append(QLatin1String("trigger"));
-        puzzlePartTypesList.append(QLatin1String("keyGen"));
-        puzzlePartTypesList.append(QLatin1String("door"));
-        return puzzlePartTypesList;
+        return puzzleInfo->getPuzzlePartTypes();
     }
     return QList<QString>();
 }
 
 QList<CreatePuzzleTool::PuzzleToolMode> PuzzleTypeManager::puzzleToolModes(const QString &puzzleType)
 {
-    if (puzzleType == QLatin1String("doorPuzzle"))
+    const PuzzleInformation *puzzleInfo = mPuzzles[puzzleType];
+    if (puzzleInfo)
     {
-        QList<CreatePuzzleTool::PuzzleToolMode> puzzleToolModesList;
-        puzzleToolModesList.append(CreatePuzzleTool::PuzzleToolMode::CreateNewPuzzle);
-        puzzleToolModesList.append(CreatePuzzleTool::PuzzleToolMode::CreatePuzzlePart);
-        puzzleToolModesList.append(CreatePuzzleTool::PuzzleToolMode::ApplyProperty);
-        return puzzleToolModesList;
+        return puzzleInfo->getPuzzlePartTypeModes();
     }
     return QList<CreatePuzzleTool::PuzzleToolMode>();
 }
@@ -134,4 +187,143 @@ CreatePuzzleTool::PuzzleToolMode PuzzleTypeManager::puzzleToolMode(const QString
         return modes.at(index);
     }
     return CreatePuzzleTool::PuzzleToolMode::CreateNewPuzzle;
+}
+
+void PuzzleTypeManager::addIdentifier(const QString &puzzleName, const QString &entry, QMap<QString, QString> &identifiers)
+{
+    QRegularExpressionMatchIterator matchIter = mIdentifierRegex.globalMatch(entry);
+    while (matchIter.hasNext())
+    {
+        QRegularExpressionMatch match = matchIter.next();
+        QString id = match.captured(QLatin1Literal("id"));
+        if (!identifiers.contains(id))
+        {
+            QString potentialIdentifier(puzzleName + QLatin1String("_") + id);
+            int count = 1;
+            while (identifiers.values().contains(potentialIdentifier))
+            {
+                potentialIdentifier = puzzleName + QLatin1String("_") + id + QString::number(count);
+                count++;
+            }
+            identifiers[id] = potentialIdentifier;
+        }
+    }
+}
+
+QString PuzzleTypeManager::applyEntryNonIdentifiers(const QString &entry, int index, QMap<QString, QList<MapPuzzleModel::PartOrPuzzle *> > &parts)
+{
+    QString firstPass;
+    QTextStream firstPassStream(&firstPass);
+    QRegularExpressionMatchIterator indexIter = mIndexRegex.globalMatch(entry);
+    int start = 0;
+    while (indexIter.hasNext())
+    {
+        QRegularExpressionMatch match = indexIter.next();
+        int length = match.capturedStart() - start;
+        firstPassStream << entry.mid(start, length);
+        firstPassStream << index;
+        start = match.capturedEnd();
+    }
+    firstPassStream << entry.mid(start);
+    QString finalPass;
+    QTextStream finalPassStream(&finalPass);
+    QRegularExpressionMatchIterator countIter = mCountRegex.globalMatch(firstPass);
+    start = 0;
+    while (countIter.hasNext())
+    {
+        QRegularExpressionMatch match = countIter.next();
+        int length = match.capturedStart() - start;
+        finalPassStream << entry.mid(start, length);
+        int count = parts[match.captured(QLatin1Literal("partType"))].length();
+        finalPassStream << count;
+        start = match.capturedEnd();
+    }
+    finalPassStream << firstPass.mid(start);
+    return finalPass;
+}
+
+QString PuzzleTypeManager::applyIdentifiers(const QString &entry, QMap<QString, QString> &identifiers)
+{
+    QString identified;
+    QTextStream identifiedStream(&identified);
+    QRegularExpressionMatchIterator matchIter = mIdentifierRegex.globalMatch(entry);
+    int start = 0;
+    while (matchIter.hasNext())
+    {
+        QRegularExpressionMatch match = matchIter.next();
+        QString id = match.captured(QLatin1Literal("id"));
+        int length = match.capturedStart() - start;
+        identifiedStream << entry.mid(start, length);
+        identifiedStream << identifiers[id];
+    }
+    identifiedStream << entry.mid(start);
+    return identified;
+}
+
+PuzzleTypeManager::PuzzleInformation::PuzzleInformation(const QString &puzzleName)
+    : mName(puzzleName)
+{
+}
+
+void PuzzleTypeManager::PuzzleInformation::addPuzzlePartEntry(const QString &puzzlePartType, const QString &entryName, const QString &entryValue)
+{
+    QMap<QString, QString> puzzlePartTypeEntries = mPuzzleParts[puzzlePartType];
+
+    puzzlePartTypeEntries[entryName] = entryValue;
+}
+
+void PuzzleTypeManager::PuzzleInformation::addMinimum(const QString &puzzlePartType, int minimum)
+{
+    mMinimums[puzzlePartType] = minimum;
+}
+
+void PuzzleTypeManager::PuzzleInformation::addMaximum(const QString &puzzlePartType, int maximum)
+{
+    mMaximums[puzzlePartType] = maximum;
+}
+
+void PuzzleTypeManager::PuzzleInformation::setPartTypeMode(const QString &puzzlePartType, CreatePuzzleTool::PuzzleToolMode mode)
+{
+    mModes[puzzlePartType] = mode;
+}
+
+const QList<QString> &PuzzleTypeManager::PuzzleInformation::getPuzzlePartTypes() const
+{
+    return mPuzzlePartTypes;
+}
+
+const QMap<QString, QString> &PuzzleTypeManager::PuzzleInformation::getPuzzlePartEntries(const QString &puzzlePartType) const
+{
+    if (mPuzzleParts.contains(puzzlePartType))
+    {
+        return mPuzzleParts[puzzlePartType];
+    }
+    return mDefaultEntries;
+}
+
+bool PuzzleTypeManager::PuzzleInformation::isCountAllowed(const QString &puzzlePartType, int count) const
+{
+    if (mMinimums.contains(puzzlePartType) && count < mMinimums[puzzlePartType])
+    {
+        return false;
+    }
+    if (mMaximums.contains(puzzlePartType) && count > mMaximums[puzzlePartType])
+    {
+        return false;
+    }
+    return true;
+}
+
+const QList<CreatePuzzleTool::PuzzleToolMode> &PuzzleTypeManager::PuzzleInformation::getPuzzlePartTypeModes() const
+{
+    return mModesList;
+}
+
+void PuzzleTypeManager::PuzzleInformation::finalize()
+{
+    mPuzzlePartTypes.append(mPuzzleParts.keys());
+    for (QString partType : mPuzzlePartTypes)
+    {
+        mModesList.append(mModes[partType]);
+    }
 }
