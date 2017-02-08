@@ -591,6 +591,7 @@ void MapPuzzleModel::internalAddPuzzlePart(MapObject *o, const QString &puzzleNa
     beginInsertRows(index(puzzleName), row, row);
     PartOrPuzzle *puzzlePart = new PartOrPuzzle(o, puzzleName);
     puzzle->mParts->append(puzzlePart);
+    mPuzzleParts[o] = puzzlePart;
     endInsertRows();
     onPuzzleChanged(index(puzzleName));
 }

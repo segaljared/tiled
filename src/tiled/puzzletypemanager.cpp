@@ -39,10 +39,15 @@ void PuzzleTypeManager::deleteInstance()
 
 void PuzzleTypeManager::initialize(const QString &path)
 {
+    mPuzzles.clear();
     QFile puzzleFile(path);
     if (!puzzleFile.open(QIODevice::ReadOnly))
     {
         PuzzleInformation *doorInfo = new PuzzleInformation(QLatin1String("doorPuzzle"));
+        doorInfo->addPuzzlePartType(QLatin1Literal("trigger"));
+        doorInfo->addPuzzlePartType(QLatin1Literal("keyGen"));
+        doorInfo->addPuzzlePartType(QLatin1Literal("door"));
+
         doorInfo->addMinimum(QLatin1Literal("trigger"), 1);
         doorInfo->addMinimum(QLatin1Literal("keyGen"), 1);
         doorInfo->addMinimum(QLatin1Literal("door"), 1);
@@ -59,6 +64,7 @@ void PuzzleTypeManager::initialize(const QString &path)
         doorInfo->addPuzzlePartEntry(QLatin1Literal("keyGen"), QLatin1Literal("randomKeyGen"), QLatin1Literal("{count:door}"));
         doorInfo->addPuzzlePartEntry(QLatin1Literal("door"), QLatin1Literal("unlockedBy"), QLatin1Literal("({index}){id:keyGen}"));
 
+        doorInfo->finalize();
         mPuzzles[doorInfo->getName()] = doorInfo;
     }
 
@@ -103,13 +109,12 @@ void PuzzleTypeManager::puzzleChanged(MapPuzzleModel::PartOrPuzzle *puzzle, MapD
             for (MapPuzzleModel::PartOrPuzzle* part : iter.value())
             {
                 QMapIterator<QString, QString> entryIter(entries);
-                QMap<QString, QString> properties = appliedProperties[part];
                 while (entryIter.hasNext())
                 {
                     entryIter.next();
                     QString entry = applyEntryNonIdentifiers(entryIter.value(), index, parts);
                     addIdentifier(puzzle->mName, entry, identifiers);
-                    properties[entryIter.key()] = entry;
+                    (appliedProperties[part])[entryIter.key()] = entry;
                 }
                 index++;
             }
@@ -255,6 +260,7 @@ QString PuzzleTypeManager::applyIdentifiers(const QString &entry, QMap<QString, 
         int length = match.capturedStart() - start;
         identifiedStream << entry.mid(start, length);
         identifiedStream << identifiers[id];
+        start = match.capturedEnd();
     }
     identifiedStream << entry.mid(start);
     return identified;
@@ -265,11 +271,14 @@ PuzzleTypeManager::PuzzleInformation::PuzzleInformation(const QString &puzzleNam
 {
 }
 
+void PuzzleTypeManager::PuzzleInformation::addPuzzlePartType(const QString &puzzlePartType)
+{
+    mPuzzlePartTypes.append(puzzlePartType);
+}
+
 void PuzzleTypeManager::PuzzleInformation::addPuzzlePartEntry(const QString &puzzlePartType, const QString &entryName, const QString &entryValue)
 {
-    QMap<QString, QString> puzzlePartTypeEntries = mPuzzleParts[puzzlePartType];
-
-    puzzlePartTypeEntries[entryName] = entryValue;
+    (mPuzzleParts[puzzlePartType])[entryName] = entryValue;
 }
 
 void PuzzleTypeManager::PuzzleInformation::addMinimum(const QString &puzzlePartType, int minimum)
@@ -321,7 +330,6 @@ const QList<CreatePuzzleTool::PuzzleToolMode> &PuzzleTypeManager::PuzzleInformat
 
 void PuzzleTypeManager::PuzzleInformation::finalize()
 {
-    mPuzzlePartTypes.append(mPuzzleParts.keys());
     for (QString partType : mPuzzlePartTypes)
     {
         mModesList.append(mModes[partType]);

@@ -43,6 +43,8 @@ private:
     public:
         PuzzleInformation(const QString &puzzleName);
 
+        void addPuzzlePartType(const QString &puzzlePartType);
+
         void addPuzzlePartEntry(const QString &puzzlePartType, const QString &entryName, const QString& entryValue);
 
         void addMinimum(const QString &puzzlePartType, int minimum);
