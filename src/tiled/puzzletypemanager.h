@@ -65,6 +65,8 @@ private:
 
         void finalize();
 
+        static PuzzleInformation *fromJson(const QJsonObject& puzzleInfoData);
+
     private:
         QString mName;
         mutable QMap<QString, QMap<QString, QString>> mPuzzleParts;

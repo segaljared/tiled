@@ -6,6 +6,9 @@
 #include "mappuzzlemodel.h"
 
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QRegularExpressionMatchIterator>
 #include <QTextStream>
 
@@ -66,6 +69,19 @@ void PuzzleTypeManager::initialize(const QString &path)
 
         doorInfo->finalize();
         mPuzzles[doorInfo->getName()] = doorInfo;
+    }
+    else
+    {
+        QByteArray puzzleData = puzzleFile.readAll();
+
+        QJsonDocument puzzleDocument(QJsonDocument::fromJson(puzzleData));
+        for(const QJsonValue &value : puzzleDocument.array())
+        {
+            QJsonObject puzzleInfoData = value.toObject();
+            PuzzleInformation *puzzleInfo = PuzzleInformation::fromJson(puzzleInfoData);
+
+
+        }
     }
 
     //READ STUFF
@@ -334,4 +350,48 @@ void PuzzleTypeManager::PuzzleInformation::finalize()
     {
         mModesList.append(mModes[partType]);
     }
+}
+
+PuzzleTypeManager::PuzzleInformation *PuzzleTypeManager::PuzzleInformation::fromJson(const QJsonObject &puzzleInfoData)
+{
+    PuzzleInformation *puzzleInfo = new PuzzleInformation(puzzleInfoData[QLatin1Literal("puzzleName")]);
+
+    for (const QJsonValue &value : puzzleInfoData[QLatin1Literal("puzzlePartTypes")])
+    {
+        QJsonObject partTypeData = value.toObject();
+        QString partName = partTypeData[QLatin1Literal("partName")].toString();
+        puzzleInfo->addPuzzlePartType(partName);
+        Qstring partTypeString = partTypeData(QLatin1Literal("partType"));
+        if (partTypeString == QLatin1Literal("newPuzzle"))
+        {
+            puzzleInfo->setPartTypeMode(partName, CreatePuzzleTool::PuzzleToolMode::CreateNewPuzzle);
+        }
+        else if (partTypeString == QLatin1Literal("newPart"))
+        {
+            puzzleInfo->setPartTypeMode(partName, CreatePuzzleTool::PuzzleToolMode::CreatePuzzlePart);
+        }
+        else if (partTypeString == QLatin1Literal("applyProperty"))
+        {
+            puzzleInfo->setPartTypeMode(partName, CreatePuzzleTool::PuzzleToolMode::ApplyProperty);
+        }
+        if (partTypeData.contains(QLatin1Literal("maximum")))
+        {
+            puzzleInfo->addMaximum(partName, partTypeData[QLatin1Literal("maximum")].toInt());
+        }
+        if (partTypeData.contains(QLatin1Literal("minimum")))
+        {
+            puzzleInfo->addMinimum(partName, partTypeData[QLatin1Literal("minimum")].toInt());
+        }
+        QJsonObject partEntries = partTypeData[QLatin1Literal("partEntries")].toObject();
+        QJsonObject::const_iterator it;
+        for (it = partEntries.constBegin(); it != partEntries.end(); it++)
+        {
+            QString entryName = it.key();
+            QString entryValue = it.value().toString();
+            puzzleInfo->addPuzzlePartEntry(partName, entryName, entryValue);
+        }
+    }
+
+    puzzleInfo->finalize();
+    return puzzleInfo;
 }
