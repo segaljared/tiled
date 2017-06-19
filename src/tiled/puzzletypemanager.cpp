@@ -6,6 +6,7 @@
 #include "mappuzzlemodel.h"
 
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
@@ -354,14 +355,14 @@ void PuzzleTypeManager::PuzzleInformation::finalize()
 
 PuzzleTypeManager::PuzzleInformation *PuzzleTypeManager::PuzzleInformation::fromJson(const QJsonObject &puzzleInfoData)
 {
-    PuzzleInformation *puzzleInfo = new PuzzleInformation(puzzleInfoData[QLatin1Literal("puzzleName")]);
+    PuzzleInformation *puzzleInfo = new PuzzleInformation(puzzleInfoData[QLatin1Literal("puzzleName")].toString());
 
-    for (const QJsonValue &value : puzzleInfoData[QLatin1Literal("puzzlePartTypes")])
+    for (const QJsonValue &value : puzzleInfoData[QLatin1Literal("puzzlePartTypes")].toArray())
     {
         QJsonObject partTypeData = value.toObject();
         QString partName = partTypeData[QLatin1Literal("partName")].toString();
         puzzleInfo->addPuzzlePartType(partName);
-        Qstring partTypeString = partTypeData(QLatin1Literal("partType"));
+        QString partTypeString = partTypeData[QLatin1Literal("partType")].toString();
         if (partTypeString == QLatin1Literal("newPuzzle"))
         {
             puzzleInfo->setPartTypeMode(partName, CreatePuzzleTool::PuzzleToolMode::CreateNewPuzzle);
