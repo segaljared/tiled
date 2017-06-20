@@ -1,0 +1,35 @@
+[
+    {
+        "puzzleName" : "doorPuzzle",
+        "puzzlePartTypes" : [
+            {
+                "partName" : "trigger",
+                "partType" : "newPuzzle",
+                "minimum" : 1,
+                "maximum" : 1,
+                "partEntries" : {
+                    "floorTrigger" : "{id:trigger}"
+                }
+            },
+            {
+                "partName" : "keyGen",
+                "partType" : "newPart",
+                "minimum" : 1,
+                "maximum" : 1,
+                "partEntries" : {
+                    "isTriggeredBy" : "{id:trigger}",
+                    "objectIdentifier" : "{id:keyGen}",
+                    "randomKeyGen" : "{count:door}"
+                }
+            },
+            {
+                "partName" : "door",
+                "partType" : "applyProperty",
+                "minimum" : 1,
+                "partEntries" : {
+                    "unlockedBy" : "({index}){id:keyGen}"
+                }
+            }
+        ]
+    }
+]

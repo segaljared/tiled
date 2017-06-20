@@ -184,7 +184,7 @@ MapEditor::MapEditor(QObject *parent)
     CreateObjectTool *polylineObjectsTool = new CreatePolylineObjectTool(this);
     Tiled::Custom::CreatePuzzleTool *puzzleObjectsTool = new Tiled::Custom::CreatePuzzleTool(this, mPuzzleTypeDock);
     mPuzzleTypeDock->setPuzzleTool(puzzleObjectsTool);
-    Tiled::Custom::PuzzleTypeManager::instance()->initialize(QLatin1String("."));
+    Tiled::Custom::PuzzleTypeManager::instance()->initialize(QLatin1String("puzzle_definitions.json"));
 
     mToolsToolBar->addAction(mToolManager->registerTool(mStampBrush));
     mToolsToolBar->addAction(mToolManager->registerTool(mTerrainBrush));

@@ -5,6 +5,7 @@
 #include "mapobject.h"
 #include "mappuzzlemodel.h"
 
+#include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -44,6 +45,8 @@ void PuzzleTypeManager::deleteInstance()
 void PuzzleTypeManager::initialize(const QString &path)
 {
     mPuzzles.clear();
+    QDir directory(path);
+    QString absolutePath = directory.absolutePath();
     QFile puzzleFile(path);
     if (!puzzleFile.open(QIODevice::ReadOnly))
     {
@@ -80,8 +83,7 @@ void PuzzleTypeManager::initialize(const QString &path)
         {
             QJsonObject puzzleInfoData = value.toObject();
             PuzzleInformation *puzzleInfo = PuzzleInformation::fromJson(puzzleInfoData);
-
-
+            mPuzzles[puzzleInfo->getName()] = puzzleInfo;
         }
     }
 

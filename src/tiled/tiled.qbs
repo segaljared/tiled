@@ -55,6 +55,15 @@ QtGuiApplication {
         fileTags: ["cpp_pch_src"]
     }
 
+    Group {
+        name: "PuzzleDefinitions"
+        qbs.install: true
+        qbs.installDir: "."
+        files: [
+            "puzzle_definitions.json"
+        ]
+    }
+
     files: [
         "aboutdialog.cpp",
         "aboutdialog.h",
