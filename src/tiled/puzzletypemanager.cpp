@@ -77,7 +77,7 @@ void PuzzleTypeManager::initialize(const QString &path)
     else
     {
         QByteArray puzzleData = puzzleFile.readAll();
-
+        QString puzzleDataString = QString::fromUtf8(puzzleData);
         QJsonDocument puzzleDocument(QJsonDocument::fromJson(puzzleData));
         for(const QJsonValue &value : puzzleDocument.array())
         {
