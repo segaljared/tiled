@@ -91,6 +91,7 @@ private:
     QList<QString> mPuzzleTypeNames;
     QMap<QString, const PuzzleInformation*> mPuzzles;
     QRegularExpression mIdentifierRegex;
+    QRegularExpression mIdentifierListRegex;
     QRegularExpression mCountRegex;
     QRegularExpression mIndexRegex;
 };

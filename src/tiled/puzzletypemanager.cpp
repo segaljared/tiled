@@ -22,6 +22,7 @@ PuzzleTypeManager *PuzzleTypeManager::mInstance;
 
 PuzzleTypeManager::PuzzleTypeManager()
     : mIdentifierRegex(QLatin1Literal("\\{id:(?<id>[^\\s\\{\\}]+)\\}")),
+      mIdentifierListRegex(QLatin1Literal("\\{ids:(?<id>[^\\s\\{\\}]+)\\}")),
       mCountRegex(QLatin1Literal("\\{count:(?<partType>[^\\s\\{\\}]+)\\}")),
       mIndexRegex(QLatin1Literal("\\{index\\}"))
 {
