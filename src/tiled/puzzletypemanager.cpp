@@ -156,10 +156,11 @@ void PuzzleTypeManager::puzzleChanged(MapPuzzleModel::PartOrPuzzle *puzzle, MapD
             while (propIter.hasNext())
             {
                 propIter.next();
+                QString entry = applyIdentifiers(propIter.value(), identifiers);
                 undo->push(new SetProperty(mapDocument,
                                            QList<Object*>() << partIter.key()->mPart,
                                            propIter.key(),
-                                           applyIdentifiers(propIter.value(), identifiers)));
+                                           applyResources(puzzleInfo, entry)));
             }
         }
 
@@ -383,6 +384,44 @@ QString PuzzleTypeManager::applyLoops(const QString &entry)
     return lastRepeat;
 }
 
+QString PuzzleTypeManager::applyResources(const PuzzleInformation *puzzleInfo, const QString &entry)
+{
+    QString resourced;
+    QTextStream resourcedStream(&resourced);
+    QRegularExpressionMatchIterator matchIter = mResourceRegex.globalMatch(entry);
+    int start = 0;
+    while (matchIter.hasNext())
+    {
+        QRegularExpressionMatch match = matchIter.next();
+        int length = match.capturedStart() - start;
+        resourcedStream << entry.mid(start, length);
+
+        QString id = match.captured(QLatin1Literal("id"));
+        QString indexString = match.captured(QLatin1Literal("index"));
+        if (!indexString.isEmpty())
+        {
+            int index = indexString.toInt();
+            QString keyOrValue = match.captured(QLatin1Literal("keyOrValue"));
+            if (keyOrValue.compare(QLatin1Literal("key")))
+            {
+                resourcedStream << puzzleInfo->getResource(id).keys().at(index);
+            }
+            else
+            {
+                resourcedStream << puzzleInfo->getResource(id).values().at(index);
+            }
+        }
+        else
+        {
+            QString key = match.captured(QLatin1Literal("key"));
+            resourcedStream << (puzzleInfo->getResource(id))[key];
+        }
+        start = match.capturedEnd();
+    }
+    resourcedStream << entry.mid(start);
+    return resourced;
+}
+
 PuzzleTypeManager::PuzzleInformation::PuzzleInformation(const QString &puzzleName)
     : mName(puzzleName)
 {
@@ -425,6 +464,11 @@ const QMap<QString, QString> &PuzzleTypeManager::PuzzleInformation::getPuzzlePar
         return mPuzzleParts[puzzlePartType];
     }
     return mDefaultEntries;
+}
+
+const QMap<QString, QString> &PuzzleTypeManager::PuzzleInformation::getResource(const QString &resourceId) const
+{
+    return mResources[resourceId];
 }
 
 bool PuzzleTypeManager::PuzzleInformation::isCountAllowed(const QString &puzzlePartType, int count) const
@@ -490,6 +534,23 @@ PuzzleTypeManager::PuzzleInformation *PuzzleTypeManager::PuzzleInformation::from
             QString entryName = it.key();
             QString entryValue = it.value().toString();
             puzzleInfo->addPuzzlePartEntry(partName, entryName, entryValue);
+        }
+    }
+
+    for (QJsonObject::const_iterator iter = puzzleInfoData.constBegin(); iter != puzzleInfoData.end(); iter++)
+    {
+        QString resourceName = iter.key();
+        if (resourceName.compare(QLatin1Literal("puzzleName")) == 0 || resourceName.compare(QLatin1Literal("puzzlePartTypes")) == 0)
+        {
+            continue;
+        }
+        QJsonObject resources = iter.value().toObject();
+        QJsonObject::const_iterator resourceIter;
+        for (resourceIter = resources.constBegin(); resourceIter != resources.end(); resourceIter++)
+        {
+            QString entryName = resourceIter.key();
+            QString entryValue = resourceIter.value().toString();
+            (puzzleInfo->mResources[resourceName])[entryName] = entryValue;
         }
     }
 

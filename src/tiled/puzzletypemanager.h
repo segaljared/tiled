@@ -59,6 +59,8 @@ private:
 
         const QMap<QString, QString> &getPuzzlePartEntries(const QString &puzzlePartType) const;
 
+        const QMap<QString, QString> &getResource(const QString &resourceId) const;
+
         bool isCountAllowed(const QString& puzzlePartType, int count) const;
 
         const QList<CreatePuzzleTool::PuzzleToolMode> &getPuzzlePartTypeModes() const;
@@ -90,6 +92,8 @@ private:
     QString applyIdentifiers(const QString &entry, QMap<QString, QList<QString>> &identifiers);
 
     QString applyLoops(const QString &entry);
+
+    QString applyResources(const PuzzleInformation *puzzleInfo, const QString &entry);
 
     QList<QString> mPuzzleTypeNames;
     QMap<QString, const PuzzleInformation*> mPuzzles;
