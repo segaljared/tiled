@@ -76,17 +76,20 @@ private:
         QList<QString> mPuzzlePartTypes;
         QList<CreatePuzzleTool::PuzzleToolMode> mModesList;
         QMap<QString, QString> mDefaultEntries;
+        QMap<QString, QMap<QString, QString>> mResources;
     };
 
     PuzzleTypeManager();
 
     static PuzzleTypeManager *mInstance;
 
-    void addIdentifier(const QString &puzzleName, const QString &entry, QMap<QString, QString> &identifiers);
+    QString addIdentifier(const QString &puzzleName, const QString &entry, const QString &partType, QMap<QString, QList<QString>> &identifiers, QString &identifierAdded);
 
     QString applyEntryNonIdentifiers(const QString &entry, int index, QMap<QString, QList<MapPuzzleModel::PartOrPuzzle*>> &parts);
 
-    QString applyIdentifiers(const QString &entry, QMap<QString, QString> &identifiers);
+    QString applyIdentifiers(const QString &entry, QMap<QString, QList<QString>> &identifiers);
+
+    QString applyLoops(const QString &entry);
 
     QList<QString> mPuzzleTypeNames;
     QMap<QString, const PuzzleInformation*> mPuzzles;
@@ -94,6 +97,9 @@ private:
     QRegularExpression mIdentifierListRegex;
     QRegularExpression mCountRegex;
     QRegularExpression mIndexRegex;
+    QRegularExpression mResourceRegex;
+    QRegularExpression mRepeatRegex;
+    QRegularExpression mRepeatIndexRegex;
 };
 
 }

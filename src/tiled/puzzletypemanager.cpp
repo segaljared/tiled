@@ -24,7 +24,10 @@ PuzzleTypeManager::PuzzleTypeManager()
     : mIdentifierRegex(QLatin1Literal("\\{id:(?<id>[^\\s\\{\\}]+)\\}")),
       mIdentifierListRegex(QLatin1Literal("\\{ids:(?<id>[^\\s\\{\\}]+)\\}")),
       mCountRegex(QLatin1Literal("\\{count:(?<partType>[^\\s\\{\\}]+)\\}")),
-      mIndexRegex(QLatin1Literal("\\{index\\}"))
+      mIndexRegex(QLatin1Literal("\\{index\\}")),
+      mResourceRegex(QLatin1Literal("\\{res\\((?<id>[^\\s\\{\\}\\[\\]]+)\\)(\\[(?<index>[0-9]+)\\]:(?<keyOrValue>key|value)|(?<key>[^\\s\\{\\}]+))\\}")),
+      mRepeatRegex(QLatin1Literal("\\{repeat:(?<id>[0-9a-zA-Z]+):(?<count>[0-9]+)(:(?<separator>[^\\}]+))?\\}(?<content>.+)\\{endrepeat:\\g{id}\\}")),
+      mRepeatIndexRegex(QLatin1Literal("\\{index:(?<id>[0-9a-zA-Z]+)\\}"))
 {
 }
 
@@ -118,7 +121,7 @@ void PuzzleTypeManager::puzzleChanged(MapPuzzleModel::PartOrPuzzle *puzzle, MapD
         }
 
         QMap<MapPuzzleModel::PartOrPuzzle*, QMap<QString, QString>> appliedProperties;
-        QMap<QString, QString> identifiers;
+        QMap<QString, QList<QString>> identifiers;
         // identifier pass
         QMapIterator<QString, QList<MapPuzzleModel::PartOrPuzzle*>> iter(parts);
         while (iter.hasNext())
@@ -129,11 +132,13 @@ void PuzzleTypeManager::puzzleChanged(MapPuzzleModel::PartOrPuzzle *puzzle, MapD
             for (MapPuzzleModel::PartOrPuzzle* part : iter.value())
             {
                 QMapIterator<QString, QString> entryIter(entries);
+                QString identifierAdded;
                 while (entryIter.hasNext())
                 {
                     entryIter.next();
                     QString entry = applyEntryNonIdentifiers(entryIter.value(), index, parts);
-                    addIdentifier(puzzle->mName, entry, identifiers);
+                    entry = addIdentifier(puzzle->mName, entry, part->mPuzzlePartType, identifiers, identifierAdded);
+                    entry = applyLoops(entry);
                     (appliedProperties[part])[entryIter.key()] = entry;
                 }
                 index++;
@@ -214,25 +219,42 @@ CreatePuzzleTool::PuzzleToolMode PuzzleTypeManager::puzzleToolMode(const QString
     return CreatePuzzleTool::PuzzleToolMode::CreateNewPuzzle;
 }
 
-void PuzzleTypeManager::addIdentifier(const QString &puzzleName, const QString &entry, QMap<QString, QString> &identifiers)
+QString PuzzleTypeManager::addIdentifier(const QString &puzzleName, const QString &entry, const QString &partType, QMap<QString, QList<QString> > &identifiers, QString &identifierAdded)
 {
     QRegularExpressionMatchIterator matchIter = mIdentifierRegex.globalMatch(entry);
+    QString newEntry;
+    QTextStream newEntryStream(&newEntry);
+    int start = 0;
     while (matchIter.hasNext())
     {
         QRegularExpressionMatch match = matchIter.next();
         QString id = match.captured(QLatin1Literal("id"));
-        if (!identifiers.contains(id))
+        int length = match.capturedStart() - start;
+        newEntryStream << entry.mid(start, length);
+        if (id.compare(QLatin1Literal("this")) == 0)
         {
-            QString potentialIdentifier(puzzleName + QLatin1String("_") + id);
-            int count = 1;
-            while (identifiers.values().contains(potentialIdentifier))
+            if (identifierAdded.length() == 0)
             {
-                potentialIdentifier = puzzleName + QLatin1String("_") + id + QString::number(count);
-                count++;
+                QString potentialIdentifier(puzzleName + QLatin1String("_") + partType);
+                int count = 1;
+                while (identifiers[id].contains(potentialIdentifier))
+                {
+                    potentialIdentifier = puzzleName + QLatin1String("_") + partType + QString::number(count);
+                    count++;
+                }
+                identifiers[id].append(potentialIdentifier);
+                identifierAdded = potentialIdentifier;
             }
-            identifiers[id] = potentialIdentifier;
+            newEntryStream << identifierAdded;
+            start = match.capturedEnd();
+        }
+        else
+        {
+            start = match.capturedStart();
         }
     }
+    newEntryStream << entry.mid(start);
+    return newEntry;
 }
 
 QString PuzzleTypeManager::applyEntryNonIdentifiers(const QString &entry, int index, QMap<QString, QList<MapPuzzleModel::PartOrPuzzle *> > &parts)
@@ -267,7 +289,7 @@ QString PuzzleTypeManager::applyEntryNonIdentifiers(const QString &entry, int in
     return finalPass;
 }
 
-QString PuzzleTypeManager::applyIdentifiers(const QString &entry, QMap<QString, QString> &identifiers)
+QString PuzzleTypeManager::applyIdentifiers(const QString &entry, QMap<QString, QList<QString> > &identifiers)
 {
     QString identified;
     QTextStream identifiedStream(&identified);
@@ -279,11 +301,86 @@ QString PuzzleTypeManager::applyIdentifiers(const QString &entry, QMap<QString, 
         QString id = match.captured(QLatin1Literal("id"));
         int length = match.capturedStart() - start;
         identifiedStream << entry.mid(start, length);
-        identifiedStream << identifiers[id];
+        Q_ASSERT(identifiers[id].length() == 1);
+        identifiedStream << identifiers[id].first();
         start = match.capturedEnd();
     }
     identifiedStream << entry.mid(start);
-    return identified;
+    QString listPass;
+    QTextStream listPassStream(&listPass);
+    QRegularExpressionMatchIterator listIter = mIdentifierListRegex.globalMatch(identified);
+    start = 0;
+    while (listIter.hasNext())
+    {
+        QRegularExpressionMatch match = listIter.next();
+        QString ids = match.captured(QLatin1Literal("ids"));
+        int length = match.capturedStart() - start;
+        listPassStream << entry.mid(start, length);
+        for (int i = 0; i < identifiers[ids].length(); i++)
+        {
+            listPassStream << identifiers[ids].at(i);
+            if (i < identifiers[ids].length() - 1)
+            {
+                listPassStream << QLatin1Char(',');
+            }
+        }
+        start = match.capturedEnd();
+    }
+    listPassStream << identified.mid(start);
+    return listPass;
+}
+
+QString PuzzleTypeManager::applyLoops(const QString &entry)
+{
+    QRegularExpressionMatch repeatMatch = mRepeatRegex.match(entry);
+    QString lastRepeat = entry;
+    while (repeatMatch.hasMatch())
+    {
+        QString repeated;
+        QTextStream repeatedStream(&repeated);
+        repeatedStream << lastRepeat.mid(0, repeatMatch.capturedStart());
+        QString repeatId = repeatMatch.captured(QLatin1Literal("id"));
+        int count = repeatMatch.captured(QLatin1Literal("count")).toInt();
+        QString content = repeatMatch.captured(QLatin1Literal("content"));
+        QString separator = repeatMatch.captured(QLatin1Literal("separator"));
+        if (separator.isEmpty())
+        {
+            separator = QLatin1Literal("");
+        }
+        for (int index = 0; index < count; index++)
+        {
+            QRegularExpressionMatchIterator indexIter = mRepeatIndexRegex.globalMatch(content);
+            QString iteration;
+            QTextStream iterationStream(&iteration);
+            int start = 0;
+            while (indexIter.hasNext())
+            {
+                QRegularExpressionMatch indexMatch = indexIter.next();
+                int length = indexMatch.capturedStart() - start;
+                iterationStream << content.mid(start, length);
+                QString indexId = indexMatch.captured(QLatin1Literal("id"));
+                if (indexId.compare(repeatId) == 0)
+                {
+                    iterationStream << index;
+                    start = indexMatch.capturedEnd();
+                }
+                else
+                {
+                    start = indexMatch.capturedStart();
+                }
+            }
+            iterationStream << content.mid(start);
+            repeatedStream << iteration;
+            if (index < count - 1)
+            {
+                repeatedStream << separator;
+            }
+        }
+        repeatedStream << lastRepeat.mid(repeatMatch.capturedEnd());
+        repeatMatch = mRepeatRegex.match(repeated);
+        lastRepeat = repeated;
+    }
+    return lastRepeat;
 }
 
 PuzzleTypeManager::PuzzleInformation::PuzzleInformation(const QString &puzzleName)

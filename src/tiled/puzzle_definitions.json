@@ -8,7 +8,7 @@
                 "minimum" : 1,
                 "maximum" : 1,
                 "partEntries" : {
-                    "floorTrigger" : "{id:trigger}"
+                    "floorTrigger" : "{id:this}"
                 }
             },
             {
@@ -18,7 +18,7 @@
                 "maximum" : 1,
                 "partEntries" : {
                     "isTriggeredBy" : "{id:trigger}",
-                    "objectIdentifier" : "{id:keyGen}",
+                    "objectIdentifier" : "{id:this}",
                     "randomKeyGen" : "{count:door}"
                 }
             },
@@ -50,7 +50,7 @@
                 "minimum" : 1,
                 "maximum" : 1,
                 "partEntries" : {
-                    "multiSwitchLock" : "{id:door}"
+                    "multiSwitchLock" : "{id:this}"
                 }
             },
             {
@@ -74,6 +74,13 @@
     },
     {
         "puzzleName" : "colorFloorSwitch",
+        "colors" : {
+            "blue" : "#0000FF",
+            "red" : "#FF0000",
+            "green" : "#00FF00",
+            "purple" : "#FF00FF",
+            "yellow" : "#FFFF00",
+        },
         "puzzlePartTypes" : [
             {
                 "partName" : "colorPuzzle",
@@ -81,8 +88,42 @@
                 "minimum" : 1,
                 "maximum" : 1,
                 "partEntries" : {
-                    "colorPuzzle" : "{blue,#0000FF}{red,#FF0000}",
-                    ""
+                    "colorPuzzle" : "{repeat:colors:{count:switchKey}}{{res(colors)[{index:colors}]:key}},{{res(colors)[{index:colors}]:value}}{endrepeat:colors}",
+                    "takesOnColorPieces" : "{ids:switch},{ids:switchKey}",
+                    "choosesColorPieces" : "{ids:switch}",
+                    "floorTrigger" : ""
+                }
+            },
+            {
+                "partName" : "door",
+                "partType" : "applyProperty",
+                "minimum" : 1,
+                "maximum" : 1,
+                "partEntries" : {
+                    "multiSwitchLock" : "{id:this}"
+                }
+            },
+            {
+                "partName" : "switch",
+                "partType" : "applyProperty",
+                "minimum" : 1,
+                "partEntries" : {
+                    "floorSwitch" : "",
+                    "objectIdentifier" : "{id:this}",
+                    "switch" : "{id:door}",
+                    "hasColor" : "{res(colors)[{index}]:key}",
+                    "choosesColor" : "{id:this}"
+                }
+            },
+            {
+                "partName" : "switchKey",
+                "partType" : "applyProperty",
+                "minimum" : 1,
+                "maximum" : 5,
+                "partEntries" : {
+                    "objectIdentifier" : "{id:this}",
+                    "floorSwitchKey" : "{res(colors)[{index}]:key}",
+                    "hasColor" : "{res(colors)[{index}]:key}"
                 }
             }
         ]
