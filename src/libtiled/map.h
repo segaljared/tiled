@@ -28,8 +28,7 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef MAP_H
-#define MAP_H
+#pragma once
 
 #include "layer.h"
 #include "object.h"
@@ -206,6 +205,7 @@ public:
 
     StaggerIndex staggerIndex() const;
     void setStaggerIndex(StaggerIndex staggerIndex);
+    void invertStaggerIndex();
 
     /**
      * Returns the margins that have to be taken into account when figuring
@@ -237,6 +237,9 @@ public:
     int imageLayerCount() const
     { return layerCount(Layer::ImageLayerType); }
 
+    int groupLayerCount() const
+    { return layerCount(Layer::GroupLayerType); }
+
     /**
      * Returns the layer at the specified index.
      */
@@ -249,7 +252,6 @@ public:
      */
     const QList<Layer*> &layers() const { return mLayers; }
 
-    QList<Layer*> layers(Layer::TypeFlag type) const;
     QList<ObjectGroup*> objectGroups() const;
     QList<TileLayer*> tileLayers() const;
 
@@ -357,14 +359,10 @@ public:
     bool isTilesetUsed(const Tileset *tileset) const;
 
     /**
-     * Creates a new map that contains the given \a layer. The map size will be
-     * determined by the size of the layer.
-     *
-     * The orientation defaults to Unknown and the tile width and height will
-     * default to 0. In case this map needs to be rendered, these properties
-     * will need to be properly set.
+     * Returns whether the map is staggered
      */
-    static Map *fromLayer(Layer *layer);
+    bool isStaggered() const
+    { return orientation() == Hexagonal || orientation() == Staggered; }
 
     LayerDataFormat layerDataFormat() const
     { return mLayerDataFormat; }
@@ -374,8 +372,11 @@ public:
     void setNextObjectId(int nextId);
     int nextObjectId() const;
     int takeNextObjectId();
+    void initializeObjectIds(ObjectGroup &objectGroup);
 
 private:
+    friend class GroupLayer;    // so it can call adoptLayer
+
     void adoptLayer(Layer *layer);
 
     void recomputeDrawMargins() const;
@@ -427,6 +428,11 @@ inline Map::StaggerIndex Map::staggerIndex() const
 inline void Map::setStaggerIndex(StaggerIndex staggerIndex)
 {
     mStaggerIndex = staggerIndex;
+}
+
+inline void Map::invertStaggerIndex()
+{
+    mStaggerIndex = static_cast<StaggerIndex>(!mStaggerIndex);
 }
 
 inline void Map::invalidateDrawMargins()
@@ -491,5 +497,3 @@ TILEDSHARED_EXPORT Map::RenderOrder renderOrderFromString(const QString &);
 Q_DECLARE_METATYPE(Tiled::Map::Orientation)
 Q_DECLARE_METATYPE(Tiled::Map::LayerDataFormat)
 Q_DECLARE_METATYPE(Tiled::Map::RenderOrder)
-
-#endif // MAP_H

@@ -152,12 +152,15 @@ QStringList FrameListModel::mimeTypes() const
 
 QMimeData *FrameListModel::mimeData(const QModelIndexList &indexes) const
 {
+    if (indexes.isEmpty())
+        return nullptr;
+
     QMimeData *mimeData = new QMimeData;
     QByteArray encodedData;
 
     QDataStream stream(&encodedData, QIODevice::WriteOnly);
 
-    foreach (const QModelIndex &index, indexes) {
+    for (const QModelIndex &index : indexes) {
         if (index.isValid()) {
             const Frame &frame = mFrames.at(index.row());
             stream << frame.tileId;
@@ -268,13 +271,11 @@ TileAnimationEditor::TileAnimationEditor(QWidget *parent)
     , mPreviewUnusedTime(0)
 {
     mUi->setupUi(this);
-
-    Zoomable *zoomable = new Zoomable(this);
-    zoomable->setComboBox(mUi->zoomComboBox);
+    resize(Utils::dpiScaled(size()));
 
     mUi->frameList->setModel(mFrameListModel);
     mUi->tilesetView->setMarkAnimatedTiles(false);
-    mUi->tilesetView->setZoomable(zoomable);
+    mUi->tilesetView->zoomable()->setComboBox(mUi->zoomComboBox);
 
     connect(mUi->tilesetView, SIGNAL(doubleClicked(QModelIndex)),
             SLOT(addFrameForTileAt(QModelIndex)));
@@ -303,7 +304,9 @@ TileAnimationEditor::TileAnimationEditor(QWidget *parent)
 
     Utils::restoreGeometry(this);
 
-    mUi->horizontalSplitter->setSizes(QList<int>() << 128 << 512);
+    mUi->horizontalSplitter->setSizes(QList<int>()
+                                      << Utils::dpiScaled(128)
+                                      << Utils::dpiScaled(512));
 }
 
 TileAnimationEditor::~TileAnimationEditor()
@@ -447,7 +450,7 @@ void TileAnimationEditor::delete_()
     undoStack->beginMacro(tr("Delete Frames"));
 
     RangeSet<int> ranges;
-    foreach (const QModelIndex &index, indexes)
+    for (const QModelIndex &index : indexes)
         ranges.insert(index.row());
 
     // Iterate backwards over the ranges in order to keep the indexes valid

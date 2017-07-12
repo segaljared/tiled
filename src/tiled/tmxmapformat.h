@@ -18,8 +18,7 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TMXMAPFORMAT_H
-#define TMXMAPFORMAT_H
+#pragma once
 
 #include "mapformat.h"
 #include "tilesetformat.h"
@@ -64,6 +63,8 @@ public:
 
     QString nameFilter() const override { return tr("Tiled map files (*.tmx)"); }
 
+    QString shortName() const override { return QLatin1String("tmx"); }
+
     bool supportsFile(const QString &fileName) const override;
 
     QString errorString() const override { return mError; }
@@ -90,6 +91,8 @@ public:
 
     QString nameFilter() const override { return tr("Tiled tileset files (*.tsx)"); }
 
+    QString shortName() const override { return QLatin1String("tsx"); }
+
     bool supportsFile(const QString &fileName) const override;
 
     QString errorString() const override { return mError; }
@@ -100,5 +103,3 @@ private:
 
 } // namespace Internal
 } // namespace Tiled
-
-#endif // TMXMAPFORMAT_H

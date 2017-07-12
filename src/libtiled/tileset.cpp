@@ -28,8 +28,10 @@
  */
 
 #include "tileset.h"
-#include "tile.h"
+
 #include "terrain.h"
+#include "tile.h"
+#include "tilesetformat.h"
 
 #include <QBitmap>
 
@@ -43,6 +45,8 @@ Tileset::Tileset(QString name, int tileWidth, int tileHeight,
     mTileHeight(tileHeight),
     mTileSpacing(tileSpacing),
     mMargin(margin),
+    mOrientation(Orthogonal),
+    mGridSize(tileWidth, tileHeight),
     mColumnCount(0),
     mExpectedColumnCount(0),
     mExpectedRowCount(0),
@@ -58,6 +62,16 @@ Tileset::~Tileset()
 {
     qDeleteAll(mTiles);
     qDeleteAll(mTerrainTypes);
+}
+
+void Tileset::setFormat(TilesetFormat *format)
+{
+    mFormat = format;
+}
+
+TilesetFormat *Tileset::format() const
+{
+    return mFormat;
 }
 
 /**
@@ -584,6 +598,10 @@ void Tileset::setTileImage(Tile *tile,
 
 void Tileset::swap(Tileset &other)
 {
+    const Properties p = properties();
+    setProperties(other.properties());
+    other.setProperties(p);
+
     std::swap(mFileName, other.mFileName);
     std::swap(mImageReference, other.mImageReference);
     std::swap(mTileWidth, other.mTileWidth);
@@ -591,6 +609,8 @@ void Tileset::swap(Tileset &other)
     std::swap(mTileSpacing, other.mTileSpacing);
     std::swap(mMargin, other.mMargin);
     std::swap(mTileOffset, other.mTileOffset);
+    std::swap(mOrientation, other.mOrientation);
+    std::swap(mGridSize, other.mGridSize);
     std::swap(mColumnCount, other.mColumnCount);
     std::swap(mExpectedColumnCount, other.mExpectedColumnCount);
     std::swap(mExpectedRowCount, other.mExpectedRowCount);
@@ -600,6 +620,7 @@ void Tileset::swap(Tileset &other)
     std::swap(mTerrainDistancesDirty, other.mTerrainDistancesDirty);
     std::swap(mLoaded, other.mLoaded);
     std::swap(mBackgroundColor, other.mBackgroundColor);
+    std::swap(mFormat, other.mFormat);
 
     // Don't swap mWeakPointer, since it's a reference to this.
 
@@ -618,10 +639,13 @@ void Tileset::swap(Tileset &other)
 SharedTileset Tileset::clone() const
 {
     SharedTileset c = create(mName, mTileWidth, mTileHeight, mTileSpacing, mMargin);
+    c->setProperties(properties());
 
     // mFileName stays empty
     c->mImageReference = mImageReference;
     c->mTileOffset = mTileOffset;
+    c->mOrientation = mOrientation;
+    c->mGridSize = mGridSize;
     c->mColumnCount = mColumnCount;
     c->mExpectedColumnCount = mExpectedColumnCount;
     c->mExpectedRowCount = mExpectedRowCount;
@@ -629,6 +653,7 @@ SharedTileset Tileset::clone() const
     c->mTerrainDistancesDirty = mTerrainDistancesDirty;
     c->mLoaded = mLoaded;
     c->mBackgroundColor = mBackgroundColor;
+    c->mFormat = mFormat;
 
     QMapIterator<int, Tile*> tileIterator(mTiles);
     while (tileIterator.hasNext()) {
@@ -663,4 +688,26 @@ void Tileset::updateTileSize()
     }
     mTileWidth = maxWidth;
     mTileHeight = maxHeight;
+}
+
+
+QString Tileset::orientationToString(Tileset::Orientation orientation)
+{
+    switch (orientation) {
+    default:
+    case Tileset::Orthogonal:
+        return QLatin1String("orthogonal");
+        break;
+    case Tileset::Isometric:
+        return QLatin1String("isometric");
+        break;
+    }
+}
+
+Tileset::Orientation Tileset::orientationFromString(const QString &string)
+{
+    Orientation orientation = Orthogonal;
+    if (string == QLatin1String("isometric"))
+        orientation = Isometric;
+    return orientation;
 }

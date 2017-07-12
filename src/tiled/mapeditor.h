@@ -18,8 +18,7 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TILED_INTERNAL_MAPEDITOR_H
-#define TILED_INTERNAL_MAPEDITOR_H
+#pragma once
 
 #include <QHash>
 #include <QMap>
@@ -28,6 +27,7 @@
 #include "clipboardmanager.h"
 #include "editor.h"
 #include "tiled.h"
+#include "tileset.h"
 
 class QComboBox;
 class QLabel;
@@ -56,6 +56,7 @@ class MapView;
 class MiniMapDock;
 class ObjectsDock;
 class PropertiesDock;
+class ReversingProxyModel;
 class StampBrush;
 class TerrainBrush;
 class TerrainDock;
@@ -63,6 +64,9 @@ class TilesetDock;
 class TileStamp;
 class TileStampManager;
 class ToolManager;
+class TreeViewComboBox;
+class UncheckableItemsModel;
+class UndoDock;
 class Zoomable;
 
 class MapEditor : public Editor
@@ -87,6 +91,9 @@ public:
     QList<QToolBar *> toolBars() const override;
     QList<QDockWidget *> dockWidgets() const override;
 
+    StandardActions enabledStandardActions() const override;
+    void performStandardAction(StandardAction action) override;
+
     MapView *viewForDocument(MapDocument *mapDocument) const;
     MapView *currentMapView() const;
     Zoomable *zoomable() const override;
@@ -105,9 +112,13 @@ public slots:
 
     void flip(FlipDirection direction);
     void rotate(RotateDirection direction);
+    void setRandom(bool value);
 
     void setStamp(const TileStamp &stamp);
     void selectTerrainBrush();
+
+    void addExternalTilesets(const QStringList &fileNames);
+    void filesDroppedOnTilesetDock(const QStringList &fileNames);
 
 private slots:
     void currentWidgetChanged();
@@ -116,12 +127,17 @@ private slots:
 
     void updateStatusInfoLabel(const QString &statusInfo);
 
-    void layerComboActivated(int index);
+    void layerComboActivated();
     void updateLayerComboIndex();
 
 private:
     void setupQuickStamps();
     void retranslateUi();
+
+    void handleExternalTilesetsAndImages(const QStringList &fileNames,
+                                         bool handleImages);
+
+    SharedTileset newTileset(const QString &fileName, const QImage &image);
 
     QMainWindow *mMainWindow;
 
@@ -130,17 +146,20 @@ private:
     QHash<MapDocument*, MapView*> mWidgetForMap;
     MapDocument *mCurrentMapDocument;
 
-    QToolButton *mRandomButton;
-
     PropertiesDock *mPropertiesDock;
     MapsDock *mMapsDock;
+    UndoDock *mUndoDock;
     ObjectsDock *mObjectsDock;
     TilesetDock *mTilesetDock;
     TerrainDock *mTerrainDock;
     MiniMapDock* mMiniMapDock;
     Custom::PuzzleTypeDock* mPuzzleTypeDock;
     QDockWidget *mTileStampsDock;
-    QComboBox *mLayerComboBox;
+
+    TreeViewComboBox *mLayerComboBox;
+    UncheckableItemsModel *mUncheckableProxyModel;
+    ReversingProxyModel *mReversingProxyModel;
+
     Zoomable *mZoomable;
     QComboBox *mZoomComboBox;
     QLabel *mStatusInfoLabel;
@@ -151,13 +170,14 @@ private:
 
     QToolBar *mMainToolBar;
     QToolBar *mToolsToolBar;
+    QToolBar *mToolSpecificToolBar;
     ToolManager *mToolManager;
     AbstractTool *mSelectedTool;
     MapView *mViewWithTool;
 
     TileStampManager *mTileStampManager;
 
-    QMap<QString, QVariant> mMapStates;
+    QVariantMap mMapStates;
 };
 
 
@@ -173,5 +193,3 @@ inline MapView *MapEditor::currentMapView() const
 
 } // namespace Internal
 } // namespace Tiled
-
-#endif // TILED_INTERNAL_MAPEDITOR_H

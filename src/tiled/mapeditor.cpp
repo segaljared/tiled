@@ -20,6 +20,7 @@
 
 #include "mapeditor.h"
 
+#include "addremovetileset.h"
 #include "brokenlinks.h"
 #include "bucketfilltool.h"
 #include "createellipseobjecttool.h"
@@ -28,7 +29,9 @@
 #include "createpolylineobjecttool.h"
 #include "createpuzzletool.h"
 #include "createrectangleobjecttool.h"
+#include "createtextobjecttool.h"
 #include "createtileobjecttool.h"
+#include "documentmanager.h"
 #include "editpolygontool.h"
 #include "eraser.h"
 #include "filechangedwarning.h"
@@ -42,6 +45,7 @@
 #include "mapsdock.h"
 #include "mapview.h"
 #include "minimapdock.h"
+#include "newtilesetdialog.h"
 #include "objectsdock.h"
 #include "objectselectiontool.h"
 #include "painttilelayer.h"
@@ -49,6 +53,7 @@
 #include "propertiesdock.h"
 #include "puzzletypedock.h"
 #include "puzzletypemanager.h"
+#include "reversingproxymodel.h"
 #include "selectsametiletool.h"
 #include "stampbrush.h"
 #include "terrain.h"
@@ -57,11 +62,15 @@
 #include "tile.h"
 #include "tileselectiontool.h"
 #include "tilesetdock.h"
+#include "tilesetdocument.h"
+#include "tilesetformat.h"
 #include "tilesetmanager.h"
 #include "tilestamp.h"
 #include "tilestampmanager.h"
 #include "tilestampsdock.h"
 #include "toolmanager.h"
+#include "treeviewcombobox.h"
+#include "undodock.h"
 #include "zoomable.h"
 
 #include <QComboBox>
@@ -70,6 +79,7 @@
 #include <QIdentityProxyModel>
 #include <QLabel>
 #include <QMainWindow>
+#include <QMessageBox>
 #include <QScrollBar>
 #include <QSettings>
 #include <QShortcut>
@@ -84,25 +94,6 @@ static const char MAPSTATES_KEY[] = "MapEditor/MapStates";
 
 namespace Tiled {
 namespace Internal {
-
-namespace {
-
-/**
- * A model that is always empty.
- */
-class EmptyModel : public QAbstractListModel
-{
-public:
-    EmptyModel(QObject *parent = nullptr)
-        : QAbstractListModel(parent)
-    {}
-
-    int rowCount(const QModelIndex &) const override
-    { return 0; }
-
-    QVariant data(const QModelIndex &, int) const override
-    { return QVariant(); }
-};
 
 /**
  * A proxy model that makes sure no items are checked or checkable.
@@ -132,11 +123,6 @@ public:
     }
 };
 
-static EmptyModel emptyModel;
-static UncheckableItemsModel uncheckableLayerModel;
-
-} // anonymous namespace
-
 
 MapEditor::MapEditor(QObject *parent)
     : Editor(parent)
@@ -145,12 +131,15 @@ MapEditor::MapEditor(QObject *parent)
     , mWidgetStack(new QStackedWidget(mMainWindow))
     , mCurrentMapDocument(nullptr)
     , mMapsDock(new MapsDock(mMainWindow))
+    , mUndoDock(new UndoDock(mMainWindow))
     , mObjectsDock(new ObjectsDock(mMainWindow))
     , mPuzzleTypeDock(new Tiled::Custom::PuzzleTypeDock(mMainWindow))
     , mTilesetDock(new TilesetDock(mMainWindow))
     , mTerrainDock(new TerrainDock(mMainWindow))
     , mMiniMapDock(new MiniMapDock(mMainWindow))
-    , mLayerComboBox(new QComboBox)
+    , mLayerComboBox(new TreeViewComboBox)
+    , mUncheckableProxyModel(new UncheckableItemsModel(this))
+    , mReversingProxyModel(new ReversingProxyModel(this))
     , mZoomable(nullptr)
     , mZoomComboBox(new QComboBox)
     , mStatusInfoLabel(new QLabel)
@@ -166,13 +155,11 @@ MapEditor::MapEditor(QObject *parent)
     mMainWindow->setDockNestingEnabled(true);
     mMainWindow->setCentralWidget(mWidgetStack);
 
-    mRandomButton = new QToolButton(mMainToolBar);
-    mRandomButton->setIcon(QIcon(QLatin1String(":images/24x24/dice.png")));
-    mRandomButton->setCheckable(true);
-    mMainToolBar->addWidget(mRandomButton);
-
     mToolsToolBar = new QToolBar(mMainWindow);
     mToolsToolBar->setObjectName(QLatin1String("toolsToolBar"));
+
+    mToolSpecificToolBar = new QToolBar(mMainWindow);
+    mToolSpecificToolBar->setObjectName(QLatin1String("toolSpecificToolBar"));
 
     mStampBrush = new StampBrush(this);
     mTerrainBrush = new TerrainBrush(this);
@@ -185,6 +172,7 @@ MapEditor::MapEditor(QObject *parent)
     Tiled::Custom::CreatePuzzleTool *puzzleObjectsTool = new Tiled::Custom::CreatePuzzleTool(this, mPuzzleTypeDock);
     mPuzzleTypeDock->setPuzzleTool(puzzleObjectsTool);
     Tiled::Custom::PuzzleTypeManager::instance()->initialize(QLatin1String("."));
+    CreateObjectTool *textObjectsTool = new CreateTextObjectTool(this);
 
     mToolsToolBar->addAction(mToolManager->registerTool(mStampBrush));
     mToolsToolBar->addAction(mToolManager->registerTool(mTerrainBrush));
@@ -201,6 +189,7 @@ MapEditor::MapEditor(QObject *parent)
     mToolsToolBar->addAction(mToolManager->registerTool(polygonObjectsTool));
     mToolsToolBar->addAction(mToolManager->registerTool(polylineObjectsTool));
     mToolsToolBar->addAction(mToolManager->registerTool(tileObjectsTool));
+    mToolsToolBar->addAction(mToolManager->registerTool(textObjectsTool));
     mToolsToolBar->addSeparator();
     mToolsToolBar->addAction(mToolManager->registerTool(puzzleObjectsTool));
     mToolsToolBar->addSeparator();
@@ -208,6 +197,7 @@ MapEditor::MapEditor(QObject *parent)
 
     mMainWindow->addToolBar(mMainToolBar);
     mMainWindow->addToolBar(mToolsToolBar);
+    mMainWindow->addToolBar(mToolSpecificToolBar);
 
     mPropertiesDock = new PropertiesDock(mMainWindow);
     mTileStampsDock = new TileStampsDock(mTileStampManager, mMainWindow);
@@ -215,6 +205,7 @@ MapEditor::MapEditor(QObject *parent)
     mMainWindow->addDockWidget(Qt::RightDockWidgetArea, mLayerDock);
     mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, mPropertiesDock);
     mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, mMapsDock);
+    mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, mUndoDock);
     mMainWindow->addDockWidget(Qt::RightDockWidgetArea, mObjectsDock);
     mMainWindow->addDockWidget(Qt::RightDockWidgetArea, mMiniMapDock);
     mMainWindow->addDockWidget(Qt::RightDockWidgetArea, mTerrainDock);
@@ -222,18 +213,24 @@ MapEditor::MapEditor(QObject *parent)
     mMainWindow->addDockWidget(Qt::LeftDockWidgetArea, mTileStampsDock);
     mMainWindow->addDockWidget(Qt::RightDockWidgetArea, mPuzzleTypeDock);
 
+    mMainWindow->tabifyDockWidget(mUndoDock, mMapsDock);
     mMainWindow->tabifyDockWidget(mMiniMapDock, mObjectsDock);
     mMainWindow->tabifyDockWidget(mObjectsDock, mLayerDock);
     mMainWindow->tabifyDockWidget(mTerrainDock, mTilesetDock);
     mMainWindow->tabifyDockWidget(mTilesetDock, mPuzzleTypeDock);
 
+    // These dock widgets may not be immediately useful to many people, so
+    // they are hidden by default.
     mMapsDock->setVisible(false);
+    mUndoDock->setVisible(false);
     mTileStampsDock->setVisible(false);
 
+    mUncheckableProxyModel->setSourceModel(mReversingProxyModel);
+    mLayerComboBox->setModel(mUncheckableProxyModel);
     mLayerComboBox->setMinimumContentsLength(10);
     mLayerComboBox->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-    connect(mLayerComboBox, SIGNAL(activated(int)),
-            this, SLOT(layerComboActivated(int)));
+    connect(mLayerComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated),
+            this, &MapEditor::layerComboActivated);
 
     mMainWindow->statusBar()->addPermanentWidget(mLayerComboBox);
     mMainWindow->statusBar()->addPermanentWidget(mZoomComboBox);
@@ -244,10 +241,12 @@ MapEditor::MapEditor(QObject *parent)
     connect(mTilesetDock, &TilesetDock::currentTileChanged, tileObjectsTool, &CreateObjectTool::setTile);
     connect(mTilesetDock, &TilesetDock::currentTileChanged, puzzleObjectsTool, &CreateObjectTool::setTile);
     connect(mTilesetDock, &TilesetDock::stampCaptured, this, &MapEditor::setStamp);
-    connect(mStampBrush, &StampBrush::stampCaptured, this, &MapEditor::setStamp);
+    connect(mTilesetDock, &TilesetDock::localFilesDropped, this, &MapEditor::filesDroppedOnTilesetDock);
 
-    connect(mRandomButton, &QToolButton::toggled, mStampBrush, &StampBrush::setRandom);
-    connect(mRandomButton, &QToolButton::toggled, mBucketFillTool, &BucketFillTool::setRandom);
+    connect(mStampBrush, &StampBrush::stampChanged, this, &MapEditor::setStamp);
+    connect(mBucketFillTool, &BucketFillTool::stampChanged, this, &MapEditor::setStamp);
+    connect(mStampBrush, &StampBrush::randomChanged, this, &MapEditor::setRandom);
+    connect(mBucketFillTool, &BucketFillTool::randomChanged, this, &MapEditor::setRandom);
 
     connect(mTerrainDock, &TerrainDock::currentTerrainChanged,
             mTerrainBrush, &TerrainBrush::setTerrain);
@@ -262,16 +261,6 @@ MapEditor::MapEditor(QObject *parent)
     setSelectedTool(mToolManager->selectedTool());
     connect(mToolManager, &ToolManager::selectedToolChanged,
             this, &MapEditor::setSelectedTool);
-
-    QShortcut *flipHorizontallyShortcut = new QShortcut(tr("X"), mMainWindow);
-    QShortcut *flipVerticallyShortcut = new QShortcut(tr("Y"), mMainWindow);
-    QShortcut *rotateRightShortcut = new QShortcut(tr("Z"), mMainWindow);
-    QShortcut *rotateLeftShortcut = new QShortcut(tr("Shift+Z"), mMainWindow);
-
-    connect(flipHorizontallyShortcut, &QShortcut::activated, this, &MapEditor::flipHorizontally);
-    connect(flipVerticallyShortcut, &QShortcut::activated, this, &MapEditor::flipVertically);
-    connect(rotateRightShortcut, &QShortcut::activated, this, &MapEditor::rotateRight);
-    connect(rotateLeftShortcut, &QShortcut::activated, this, &MapEditor::rotateLeft);
 
     setupQuickStamps();
     retranslateUi();
@@ -323,14 +312,12 @@ void MapEditor::addDocument(Document *document)
         if (scale > 0)
             view->zoomable()->setScale(scale);
 
-        const int hor = mapState.value(QLatin1String("scrollX")).toInt();
-        const int ver = mapState.value(QLatin1String("scrollY")).toInt();
-        view->horizontalScrollBar()->setSliderPosition(hor);
-        view->verticalScrollBar()->setSliderPosition(ver);
+        const QPointF viewCenter = mapState.value(QLatin1String("viewCenter")).toPointF();
+        view->forceCenterOn(viewCenter);
 
-        int layer = mapState.value(QLatin1String("selectedLayer")).toInt();
-        if (layer > 0 && layer < mapDocument->map()->layerCount())
-            mapDocument->setCurrentLayerIndex(layer);
+        int layerIndex = mapState.value(QLatin1String("selectedLayer")).toInt();
+        if (Layer *layer = layerAtGlobalIndex(mapDocument->map(), layerIndex))
+            mapDocument->setCurrentLayer(layer);
     }
 }
 
@@ -346,9 +333,8 @@ void MapEditor::removeDocument(Document *document)
     if (!mapDocument->fileName().isEmpty()) {
         QVariantMap mapState;
         mapState.insert(QLatin1String("scale"), mapView->zoomable()->scale());
-        mapState.insert(QLatin1String("scrollX"), mapView->horizontalScrollBar()->sliderPosition());
-        mapState.insert(QLatin1String("scrollY"), mapView->verticalScrollBar()->sliderPosition());
-        mapState.insert(QLatin1String("selectedLayer"), mapDocument->currentLayerIndex());
+        mapState.insert(QLatin1String("viewCenter"), mapView->mapToScene(mapView->viewport()->rect().center()));
+        mapState.insert(QLatin1String("selectedLayer"), globalIndex(mapDocument->currentLayer()));
         mMapStates.insert(mapDocument->fileName(), mapState);
 
         Preferences *prefs = Preferences::instance();
@@ -379,7 +365,6 @@ void MapEditor::setCurrentDocument(Document *document)
         mWidgetStack->setCurrentWidget(mapView);
 
     mLayerDock->setMapDocument(mapDocument);
-    mToolManager->setMapDocument(mapDocument);
 
     if (mZoomable) {
         mZoomable->setComboBox(nullptr);
@@ -387,13 +372,14 @@ void MapEditor::setCurrentDocument(Document *document)
     }
 
     mPropertiesDock->setDocument(mapDocument);
+    mUndoDock->setStack(document ? document->undoStack() : nullptr);
     mObjectsDock->setMapDocument(mapDocument);
     mTilesetDock->setMapDocument(mapDocument);
     mTerrainDock->setDocument(mapDocument);
     mMiniMapDock->setMapDocument(mapDocument);
 
     if (mapDocument) {
-        connect(mapDocument, &MapDocument::currentLayerIndexChanged,
+        connect(mapDocument, &MapDocument::currentLayerChanged,
                 this, &MapEditor::updateLayerComboIndex);
 //        connect(mapDocument, SIGNAL(selectedAreaChanged(QRegion,QRegion)),
 //                SLOT(updateActions()));
@@ -405,10 +391,9 @@ void MapEditor::setCurrentDocument(Document *document)
             mZoomable->setComboBox(mZoomComboBox);
         }
 
-        uncheckableLayerModel.setSourceModel(mapDocument->layerModel());
-        mLayerComboBox->setModel(&uncheckableLayerModel);
+        mReversingProxyModel->setSourceModel(mapDocument->layerModel());
     } else {
-        mLayerComboBox->setModel(&emptyModel);
+        mReversingProxyModel->setSourceModel(nullptr);
     }
 
     mLayerComboBox->setEnabled(mapDocument);
@@ -420,6 +405,9 @@ void MapEditor::setCurrentDocument(Document *document)
         mapScene->disableSelectedTool();
         mViewWithTool = nullptr;
     }
+
+    mToolManager->setMapDocument(mapDocument);
+
     if (mapView) {
         MapScene *mapScene = mapView->mapScene();
         mapScene->setSelectedTool(mSelectedTool);
@@ -446,7 +434,8 @@ QList<QToolBar *> MapEditor::toolBars() const
 {
     return QList<QToolBar*> {
         mMainToolBar,
-        mToolsToolBar
+        mToolsToolBar,
+        mToolSpecificToolBar
     };
 }
 
@@ -456,12 +445,55 @@ QList<QDockWidget *> MapEditor::dockWidgets() const
         mPropertiesDock,
         mLayerDock,
         mMapsDock,
+        mUndoDock,
         mObjectsDock,
         mTilesetDock,
         mTerrainDock,
         mMiniMapDock,
         mTileStampsDock
     };
+}
+
+Editor::StandardActions MapEditor::enabledStandardActions() const
+{
+    StandardActions standardActions;
+
+    if (mCurrentMapDocument) {
+        Layer *currentLayer = mCurrentMapDocument->currentLayer();
+
+        bool tileLayerSelected = currentLayer && currentLayer->isTileLayer();
+        bool objectsSelected = !mCurrentMapDocument->selectedObjects().isEmpty();
+        QRegion selection = mCurrentMapDocument->selectedArea();
+
+        if ((tileLayerSelected && !selection.isEmpty()) || objectsSelected)
+            standardActions |= CutAction | CopyAction | DeleteAction;
+
+        if (ClipboardManager::instance()->hasMap())
+            standardActions |= PasteAction | PasteInPlaceAction;
+    }
+
+    return standardActions;
+}
+
+void MapEditor::performStandardAction(StandardAction action)
+{
+    switch (action) {
+    case CutAction:
+        MapDocumentActionHandler::instance()->cut();
+        break;
+    case CopyAction:
+        MapDocumentActionHandler::instance()->copy();
+        break;
+    case PasteAction:
+        paste(ClipboardManager::PasteDefault);
+        break;
+    case PasteInPlaceAction:
+        paste(ClipboardManager::PasteInPlace);
+        break;
+    case DeleteAction:
+        MapDocumentActionHandler::instance()->delete_();
+        break;
+    }
 }
 
 Zoomable *MapEditor::zoomable() const
@@ -487,6 +519,7 @@ void MapEditor::setSelectedTool(AbstractTool *tool)
     }
 
     mSelectedTool = tool;
+    mToolSpecificToolBar->clear();
 
     if (mViewWithTool) {
         MapScene *mapScene = mViewWithTool->mapScene();
@@ -506,6 +539,8 @@ void MapEditor::setSelectedTool(AbstractTool *tool)
     if (tool) {
         connect(tool, &AbstractTool::cursorChanged,
                 this, &MapEditor::cursorChanged);
+
+        tool->populateToolBar(mToolSpecificToolBar);
     }
 }
 
@@ -590,6 +625,12 @@ void MapEditor::rotate(RotateDirection direction)
     }
 }
 
+void MapEditor::setRandom(bool value)
+{
+    mStampBrush->setRandom(value);
+    mBucketFillTool->setRandom(value);
+}
+
 /**
  * Sets the current stamp, which is used by both the stamp brush and the bucket
  * fill tool.
@@ -645,25 +686,140 @@ void MapEditor::updateStatusInfoLabel(const QString &statusInfo)
     mStatusInfoLabel->setText(statusInfo);
 }
 
-void MapEditor::layerComboActivated(int index)
+void MapEditor::layerComboActivated()
 {
-    if (index == -1)
-        return;
     if (!mCurrentMapDocument)
         return;
 
-    if (index != mCurrentMapDocument->currentLayerIndex())
-        mCurrentMapDocument->setCurrentLayerIndex(index);
+    const QModelIndex comboIndex = mLayerComboBox->currentModelIndex();
+    const QModelIndex reversedIndex = mUncheckableProxyModel->mapToSource(comboIndex);
+    const QModelIndex sourceIndex = mReversingProxyModel->mapToSource(reversedIndex);
+    Layer *layer = mCurrentMapDocument->layerModel()->toLayer(sourceIndex);
+    if (!layer)
+        return;
+
+    mCurrentMapDocument->setCurrentLayer(layer);
 }
 
 void MapEditor::updateLayerComboIndex()
 {
-    int layerIndex = -1;
+    QModelIndex index;
 
-    if (mCurrentMapDocument)
-        layerIndex = mCurrentMapDocument->currentLayerIndex();
+    if (mCurrentMapDocument) {
+        const auto currentLayer = mCurrentMapDocument->currentLayer();
+        const QModelIndex sourceIndex = mCurrentMapDocument->layerModel()->index(currentLayer);
+        const QModelIndex reversedIndex = mReversingProxyModel->mapFromSource(sourceIndex);
+        index = mUncheckableProxyModel->mapFromSource(reversedIndex);
+    }
 
-    mLayerComboBox->setCurrentIndex(layerIndex);
+    mLayerComboBox->setCurrentModelIndex(index);
+}
+
+void MapEditor::addExternalTilesets(const QStringList &fileNames)
+{
+    handleExternalTilesetsAndImages(fileNames, false);
+}
+
+void MapEditor::filesDroppedOnTilesetDock(const QStringList &fileNames)
+{
+    handleExternalTilesetsAndImages(fileNames, true);
+}
+
+void MapEditor::handleExternalTilesetsAndImages(const QStringList &fileNames,
+                                                bool handleImages)
+{
+    // These files could be either external tilesets, in which case we'll add
+    // them to the current map, or images, in which case we'll offer to create
+    // tilesets based on them (unless handleImages is false).
+
+    QVector<SharedTileset> tilesets;
+
+    for (const QString &fileName : fileNames) {
+        QString error;
+
+        // Check if the file is an already loaded tileset
+        SharedTileset tileset = TilesetManager::instance()->findTileset(fileName);
+        if (tileset) {
+            tilesets.append(tileset);
+            continue;
+        }
+
+        // Check if the file is has a supported tileset format
+        TilesetFormat *tilesetFormat = findSupportingFormat(fileName);
+        if (tilesetFormat) {
+            tileset = tilesetFormat->read(fileName);
+            if (tileset) {
+                tileset->setFormat(tilesetFormat);
+                tilesets.append(tileset);
+                continue;
+            } else {
+                error = tilesetFormat->errorString();
+            }
+        }
+
+        if (handleImages) {
+            // Check if the file is a supported image format
+            QImage image(fileName);
+            if (!image.isNull()) {
+                tileset = newTileset(fileName, image);
+                if (tileset)
+                    tilesets.append(tileset);
+                continue;
+            }
+        }
+
+        if (fileNames.size() == 1) {
+            QMessageBox::critical(mMainWindow, tr("Error Reading Tileset"), error);
+            return;
+        } else {
+            int result;
+
+            result = QMessageBox::warning(mMainWindow, tr("Error Reading Tileset"),
+                                          tr("%1: %2").arg(fileName, error),
+                                          QMessageBox::Abort | QMessageBox::Ignore,
+                                          QMessageBox::Ignore);
+
+            if (result == QMessageBox::Abort)
+                return;
+        }
+    }
+
+    // Filter out any tilesets that are already referenced by the map
+    auto it = tilesets.begin();
+    auto end = std::remove_if(it, tilesets.end(), [this](SharedTileset &tileset) {
+        return mCurrentMapDocument->map()->tilesets().contains(tileset);
+    });
+
+    if (it != end) {
+        QUndoStack *undoStack = mCurrentMapDocument->undoStack();
+        undoStack->beginMacro(tr("Add %n Tileset(s)", "", tilesets.size()));
+        for (; it != end; ++it)
+            undoStack->push(new AddTileset(mCurrentMapDocument, *it));
+        undoStack->endMacro();
+    }
+}
+
+SharedTileset MapEditor::newTileset(const QString &path, const QImage &image)
+{
+    NewTilesetDialog newTileset(mMainWindow->window());
+    newTileset.setImagePath(path);
+
+    SharedTileset tileset = newTileset.createTileset();
+    if (!tileset)
+        return tileset;
+
+    // Try to do something sensible when the user chooses to make a collection
+    if (tileset->isCollection())
+        tileset->addTile(QPixmap::fromImage(image), path);
+
+    if (!newTileset.isEmbedded()) {
+        // Save new external tileset
+        QScopedPointer<TilesetDocument> tilesetDocument(new TilesetDocument(tileset));
+        if (!DocumentManager::instance()->saveDocumentAs(tilesetDocument.data()))
+            return SharedTileset();
+    }
+
+    return tileset;
 }
 
 void MapEditor::setupQuickStamps()
@@ -706,10 +862,8 @@ void MapEditor::setupQuickStamps()
 
 void MapEditor::retranslateUi()
 {
-    mRandomButton->setToolTip(tr("Random Mode"));
-    mRandomButton->setShortcut(QKeySequence(tr("D")));
-
     mToolsToolBar->setWindowTitle(tr("Tools"));
+    mToolSpecificToolBar->setWindowTitle(tr("Tool Options"));
 }
 
 } // namespace Internal

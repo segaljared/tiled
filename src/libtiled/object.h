@@ -26,8 +26,7 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef OBJECT_H
-#define OBJECT_H
+#pragma once
 
 #include "properties.h"
 
@@ -119,11 +118,27 @@ public:
     void removeProperty(const QString &name)
     { mProperties.remove(name); }
 
+    bool isPartOfTileset() const;
+
 private:
-    TypeId mTypeId;
+    const TypeId mTypeId;
     Properties mProperties;
 };
 
-} // namespace Tiled
 
-#endif // OBJECT_H
+/**
+ * Returns whether this object is stored as part of a tileset.
+ */
+inline bool Object::isPartOfTileset() const
+{
+    switch (mTypeId) {
+    case Object::TilesetType:
+    case Object::TileType:
+    case Object::TerrainType:
+        return true;
+    default:
+        return false;
+    }
+}
+
+} // namespace Tiled

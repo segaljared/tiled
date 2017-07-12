@@ -30,8 +30,11 @@
 #include "mapscene.h"
 #include "mapdocument.h"
 #include "painttilelayer.h"
+#include "stampactions.h"
 
+#include <QAction>
 #include <QApplication>
+#include <QToolBar>
 
 using namespace Tiled;
 using namespace Tiled::Internal;
@@ -46,7 +49,18 @@ BucketFillTool::BucketFillTool(QObject *parent)
     , mLastShiftStatus(false)
     , mIsRandom(false)
     , mLastRandomStatus(false)
+    , mStampActions(new StampActions(this))
 {
+    connect(mStampActions->random(), &QAction::toggled, this, &BucketFillTool::randomChanged);
+
+    connect(mStampActions->flipHorizontal(), &QAction::triggered,
+            [this]() { emit stampChanged(mStamp.flipped(FlipHorizontally)); });
+    connect(mStampActions->flipVertical(), &QAction::triggered,
+            [this]() { emit stampChanged(mStamp.flipped(FlipVertically)); });
+    connect(mStampActions->rotateLeft(), &QAction::triggered,
+            [this]() { emit stampChanged(mStamp.rotated(RotateLeft)); });
+    connect(mStampActions->rotateRight(), &QAction::triggered,
+            [this]() { emit stampChanged(mStamp.rotated(RotateRight)); });
 }
 
 BucketFillTool::~BucketFillTool()
@@ -192,6 +206,9 @@ void BucketFillTool::mousePressed(QGraphicsSceneMouseEvent *event)
     if (!brushItem()->isVisible())
         return;
 
+    if (!currentTileLayer()->isUnlocked())
+        return;
+
     const TileLayer *preview = mFillOverlay.data();
     if (!preview)
         return;
@@ -213,7 +230,7 @@ void BucketFillTool::mousePressed(QGraphicsSceneMouseEvent *event)
 
     QRegion fillRegion(mFillRegion);
     mapDocument()->undoStack()->push(paint);
-    mapDocument()->emitRegionEdited(fillRegion, currentTileLayer());
+    emit mapDocument()->regionEdited(fillRegion, currentTileLayer());
 }
 
 void BucketFillTool::mouseReleased(QGraphicsSceneMouseEvent *)
@@ -233,6 +250,8 @@ void BucketFillTool::languageChanged()
 {
     setName(tr("Bucket Fill Tool"));
     setShortcut(QKeySequence(tr("F")));
+
+    mStampActions->languageChanged();
 }
 
 void BucketFillTool::mapDocumentChanged(MapDocument *oldDocument,
@@ -261,6 +280,11 @@ void BucketFillTool::setStamp(const TileStamp &stamp)
         tilePositionChanged(tilePosition());
 }
 
+void BucketFillTool::populateToolBar(QToolBar *toolBar)
+{
+    mStampActions->populateToolBar(toolBar, mIsRandom);
+}
+
 void BucketFillTool::clearOverlay()
 {
     // Clear connections before clearing overlay so there is no
@@ -282,7 +306,7 @@ void BucketFillTool::makeConnections()
             this, &BucketFillTool::clearOverlay);
 
     // Overlay needs to be cleared if we switch to another layer
-    connect(mapDocument(), &MapDocument::currentLayerIndexChanged,
+    connect(mapDocument(), &MapDocument::currentLayerChanged,
             this, &BucketFillTool::clearOverlay);
 
     // Overlay needs be cleared if the selection changes, since
@@ -299,7 +323,7 @@ void BucketFillTool::clearConnections(MapDocument *mapDocument)
     disconnect(mapDocument, &MapDocument::regionChanged,
                this, &BucketFillTool::clearOverlay);
 
-    disconnect(mapDocument, &MapDocument::currentLayerIndexChanged,
+    disconnect(mapDocument, &MapDocument::currentLayerChanged,
                this, &BucketFillTool::clearOverlay);
 
     disconnect(mapDocument, &MapDocument::selectedAreaChanged,
@@ -345,7 +369,8 @@ void BucketFillTool::updateRandomListAndMissingTilesets()
         mapDocument()->unifyTilesets(variation.map, mMissingTilesets);
 
         if (mIsRandom) {
-            for (const Cell &cell : *variation.tileLayer()) {
+            const TileLayer &tileLayer = *variation.tileLayer();
+            for (const Cell &cell : tileLayer) {
                 if (const Tile *tile = cell.tile())
                     mRandomCellPicker.add(cell, tile->probability());
             }

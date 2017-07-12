@@ -21,13 +21,13 @@
 #include "tengineplugin.h"
 
 #include "map.h"
+#include "mapobject.h"
+#include "objectgroup.h"
+#include "properties.h"
+#include "savefile.h"
 #include "tile.h"
 #include "tilelayer.h"
-#include "objectgroup.h"
-#include "mapobject.h"
-#include "properties.h"
 
-#include <QSaveFile>
 #include <QTextStream>
 #include <QHash>
 #include <QList>
@@ -44,12 +44,12 @@ bool TenginePlugin::write(const Tiled::Map *map, const QString &fileName)
 {
     using namespace Tiled;
 
-    QSaveFile file(fileName);
+    SaveFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         mError = tr("Could not open file for writing.");
         return false;
     }
-    QTextStream out(&file);
+    QTextStream out(file.device());
 
     // Write the header
     QString header = map->property("header").toString();
@@ -291,6 +291,11 @@ bool TenginePlugin::write(const Tiled::Map *map, const QString &fileName)
 QString TenginePlugin::nameFilter() const
 {
     return tr("T-Engine4 map files (*.lua)");
+}
+
+QString TenginePlugin::shortName() const
+{
+    return QLatin1String("te4");
 }
 
 QString TenginePlugin::errorString() const

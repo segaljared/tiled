@@ -18,8 +18,7 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TILED_INTERNAL_BROKENLINKS_H
-#define TILED_INTERNAL_BROKENLINKS_H
+#pragma once
 
 #include "tileset.h"
 
@@ -133,10 +132,12 @@ signals:
 
 private slots:
     void clicked(QAbstractButton *button);
-    void selectionChanged(const QItemSelection &selected);
+    void selectionChanged();
 
 private:
+    void tryFixLinks(const QVector<BrokenLink> &links);
     void tryFixLink(const BrokenLink &link);
+    bool tryFixLink(const BrokenLink &link, const QString &newFilePath);
 
     BrokenLinksModel *mBrokenLinksModel;
     QSortFilterProxyModel *mProxyModel;
@@ -149,5 +150,3 @@ private:
 
 } // namespace Internal
 } // namespace Tiled
-
-#endif // TILED_INTERNAL_BROKENLINKS_H

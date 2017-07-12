@@ -10,8 +10,7 @@ QtGuiApplication {
     Depends { name: "translations" }
     Depends { name: "qtpropertybrowser" }
     Depends { name: "qtsingleapplication" }
-    Depends { name: "Qt"; submodules: ["core", "widgets"] }
-    Depends { name: "Qt.opengl"; condition: Qt.core.versionMinor < 4 }
+    Depends { name: "Qt"; submodules: ["core", "widgets"]; versionAtLeast: "5.4" }
 
     property string sparkleDir: {
         if (qbs.architecture === "x86_64")
@@ -21,6 +20,7 @@ QtGuiApplication {
     }
 
     cpp.includePaths: ["."]
+    cpp.useRPaths: project.useRPaths
     cpp.rpaths: {
         if (qbs.targetOS.contains("darwin"))
             return ["@loader_path/../Frameworks"];
@@ -29,7 +29,7 @@ QtGuiApplication {
         else
             return ["$ORIGIN/../lib"];
     }
-    cpp.useCxxPrecompiledHeader: true
+    cpp.useCxxPrecompiledHeader: qbs.buildVariant != "debug"
     cpp.cxxLanguageVersion: "c++11"
 
     cpp.defines: {
@@ -61,6 +61,8 @@ QtGuiApplication {
         "aboutdialog.ui",
         "abstractobjecttool.cpp",
         "abstractobjecttool.h",
+        "abstracttileselectiontool.cpp",
+        "abstracttileselectiontool.h",
         "abstracttiletool.cpp",
         "abstracttiletool.h",
         "abstracttool.cpp",
@@ -121,6 +123,8 @@ QtGuiApplication {
         "changeproperties.h",
         "changeselectedarea.cpp",
         "changeselectedarea.h",
+        "changetile.cpp",
+        "changetile.h",
         "changetileanimation.cpp",
         "changetileanimation.h",
         "changetileimagesource.cpp",
@@ -146,6 +150,8 @@ QtGuiApplication {
         "command.h",
         "commandlineparser.cpp",
         "commandlineparser.h",
+        "commandmanager.cpp",
+        "commandmanager.h",
         "consoledock.cpp",
         "consoledock.h",
         "containerhelpers.h",
@@ -165,6 +171,8 @@ QtGuiApplication {
         "createrectangleobjecttool.h",
         "createscalableobjecttool.cpp",
         "createscalableobjecttool.h",
+        "createtextobjecttool.cpp",
+        "createtextobjecttool.h",
         "createtileobjecttool.cpp",
         "createtileobjecttool.h",
         "document.cpp",
@@ -192,6 +200,10 @@ QtGuiApplication {
         "flipmapobjects.h",
         "geometry.cpp",
         "geometry.h",
+        "grouplayeritem.cpp",
+        "grouplayeritem.h",
+        "iconcheckdelegate.cpp",
+        "iconcheckdelegate.h",
         "id.cpp",
         "id.h",
         "imagecolorpickerwidget.cpp",
@@ -205,6 +217,8 @@ QtGuiApplication {
         "languagemanager.h",
         "layerdock.cpp",
         "layerdock.h",
+        "layeritem.cpp",
+        "layeritem.h",
         "layermodel.cpp",
         "layermodel.h",
         "layeroffsettool.cpp",
@@ -239,6 +253,8 @@ QtGuiApplication {
         "minimapdock.cpp",
         "minimapdock.h",
         "minimap.h",
+        "minimaprenderer.cpp",
+        "minimaprenderer.h",
         "movelayer.cpp",
         "movelayer.h",
         "movemapobject.cpp",
@@ -302,6 +318,8 @@ QtGuiApplication {
         "renamelayer.h",
         "renameterrain.cpp",
         "renameterrain.h",
+        "reparentlayers.cpp",
+        "reparentlayers.h",
         "replacetileset.cpp",
         "replacetileset.h",
         "resizedialog.cpp",
@@ -325,12 +343,16 @@ QtGuiApplication {
         "selectsametiletool.h",
         "snaphelper.cpp",
         "snaphelper.h",
+        "stampactions.cpp",
+        "stampactions.h",
         "stampbrush.cpp",
         "stampbrush.h",
         "standardautoupdater.cpp",
         "standardautoupdater.h",
         "stylehelper.cpp",
         "stylehelper.h",
+        "swaptiles.cpp",
+        "swaptiles.h",
         "terrainbrush.cpp",
         "terrainbrush.h",
         "terraindock.cpp",
@@ -349,8 +371,8 @@ QtGuiApplication {
         "tileanimationeditor.cpp",
         "tileanimationeditor.h",
         "tileanimationeditor.ui",
-        "tilecollisioneditor.cpp",
-        "tilecollisioneditor.h",
+        "tilecollisiondock.cpp",
+        "tilecollisiondock.h",
         "tiledapplication.cpp",
         "tiledapplication.h",
         "tiled.qrc",
@@ -370,6 +392,8 @@ QtGuiApplication {
         "tilesetdock.h",
         "tilesetdocument.cpp",
         "tilesetdocument.h",
+        "tilesetdocumentsmodel.cpp",
+        "tilesetdocumentsmodel.h",
         "tileseteditor.cpp",
         "tileseteditor.h",
         "tilesetmodel.cpp",
@@ -392,6 +416,8 @@ QtGuiApplication {
         "tmxmapformat.h",
         "toolmanager.cpp",
         "toolmanager.h",
+        "treeviewcombobox.cpp",
+        "treeviewcombobox.h",
         "undocommands.h",
         "undodock.cpp",
         "undodock.h",
@@ -471,6 +497,86 @@ QtGuiApplication {
         files: ["images/*.icns"]
     }
 
+    Group {
+        name: "Desktop file (Linux)"
+        condition: qbs.targetOS.contains("linux")
+        qbs.install: true
+        qbs.installDir: "share/applications"
+        files: [ "../../tiled.desktop" ]
+    }
+
+    Group {
+        name: "Thumbnailer (Linux)"
+        condition: qbs.targetOS.contains("linux")
+        qbs.install: true
+        qbs.installDir: "share/thumbnailers"
+        files: [ "../../mime/tiled.thumbnailer" ]
+    }
+
+    Group {
+        name: "MIME info (Linux)"
+        condition: qbs.targetOS.contains("linux")
+        qbs.install: true
+        qbs.installDir: "share/mime/packages"
+        files: [ "../../mime/tiled.xml" ]
+    }
+
+    Group {
+        name: "Man page (Linux)"
+        condition: qbs.targetOS.contains("linux")
+        qbs.install: true
+        qbs.installDir: "share/man/man1"
+        files: [ "../../man/tiled.1" ]
+    }
+
+    Group {
+        name: "Icon 16x16 (Linux)"
+        condition: qbs.targetOS.contains("linux")
+        qbs.install: true
+        qbs.installDir: "share/icons/hicolor/16x16/apps"
+        files: [ "images/16x16/tiled.png" ]
+    }
+
+    Group {
+        name: "Icon 32x32 (Linux)"
+        condition: qbs.targetOS.contains("linux")
+        qbs.install: true
+        qbs.installDir: "share/icons/hicolor/32x32/apps"
+        files: [ "images/32x32/tiled.png" ]
+    }
+
+    Group {
+        name: "Icon scalable (Linux)"
+        condition: qbs.targetOS.contains("linux")
+        qbs.install: true
+        qbs.installDir: "share/icons/hicolor/scalable/apps"
+        files: [ "images/scalable/tiled.svg" ]
+    }
+
+    Group {
+        name: "MIME icon 16x16 (Linux)"
+        condition: qbs.targetOS.contains("linux")
+        qbs.install: true
+        qbs.installDir: "share/icons/hicolor/16x16/mimetypes"
+        files: [ "images/16x16/application-x-tiled.png" ]
+    }
+
+    Group {
+        name: "MIME icon 32x32 (Linux)"
+        condition: qbs.targetOS.contains("linux")
+        qbs.install: true
+        qbs.installDir: "share/icons/hicolor/32x32/mimetypes"
+        files: [ "images/32x32/application-x-tiled.png" ]
+    }
+
+    Group {
+        name: "MIME icon scalable (Linux)"
+        condition: qbs.targetOS.contains("linux")
+        qbs.install: true
+        qbs.installDir: "share/icons/hicolor/scalable/mimetypes"
+        files: [ "images/scalable/application-x-tiled.svg" ]
+    }
+
     // Generate the tiled.rc file in order to dynamically specify the version
     Group {
         name: "RC file (Windows)"
@@ -498,9 +604,13 @@ QtGuiApplication {
                 var inf = new TextFile(input.filePath);
                 var all = inf.readAll();
 
+                var versionArray = project.version.split(".");
+                if (versionArray.length == 3)
+                    versionArray.push("0");
+
                 // replace vars
                 vars['VERSION'] = project.version;
-                vars['VERSION_CSV'] = project.version.replace(/\./g, ',');
+                vars['VERSION_CSV'] = versionArray.join(",");
 
                 for (i in vars) {
                     all = all.replace(new RegExp('@' + i + '@(?!\w)', 'g'), vars[i]);

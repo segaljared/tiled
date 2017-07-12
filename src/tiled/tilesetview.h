@@ -18,8 +18,7 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TILESETVIEW_H
-#define TILESETVIEW_H
+#pragma once
 
 #include "tilesetmodel.h"
 
@@ -56,7 +55,6 @@ public:
     int sizeHintForColumn(int column) const override;
     int sizeHintForRow(int row) const override;
 
-    void setZoomable(Zoomable *zoomable);
     Zoomable *zoomable() const { return mZoomable; }
 
     /**
@@ -117,9 +115,12 @@ public:
 signals:
     void createNewTerrain(Tile *tile);
     void terrainImageSelected(Tile *tile);
+    void swapTilesRequested(Tile *tileA, Tile *tileB);
+    void changeSelectedMapObjectsTileRequested(Tile *tile);
 
 protected:
     bool event(QEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
@@ -131,6 +132,8 @@ private slots:
     void addTerrainType();
     void selectTerrainImage();
     void editTileProperties();
+    void swapTiles();
+    void changeSelectedMapObjectsTile();
     void setDrawGrid(bool drawGrid);
 
     void adjustScale();
@@ -173,5 +176,3 @@ inline bool TilesetView::markAnimatedTiles() const
 } // namespace Tiled
 
 Q_DECLARE_METATYPE(Tiled::Internal::TilesetView *)
-
-#endif // TILESETVIEW_H
