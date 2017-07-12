@@ -72,6 +72,7 @@ macx {
 
 SOURCES += aboutdialog.cpp \
     abstractobjecttool.cpp \
+    abstracttileselectiontool.cpp \
     abstracttiletool.cpp \
     abstracttool.cpp \
     actionmanager.cpp \
@@ -100,6 +101,7 @@ SOURCES += aboutdialog.cpp \
     changepolygon.cpp \
     changeproperties.cpp \
     changeselectedarea.cpp \
+    changetile.cpp \
     changetileanimation.cpp \
     changetileimagesource.cpp \
     changetileobjectgroup.cpp \
@@ -113,6 +115,7 @@ SOURCES += aboutdialog.cpp \
     commanddatamodel.cpp \
     commanddialog.cpp \
     commandlineparser.cpp \
+    commandmanager.cpp \
     consoledock.cpp \
     createellipseobjecttool.cpp \
     createmultipointobjecttool.cpp \
@@ -121,6 +124,7 @@ SOURCES += aboutdialog.cpp \
     createpolylineobjecttool.cpp \
     createrectangleobjecttool.cpp \
     createscalableobjecttool.cpp \
+    createtextobjecttool.cpp \
     createtileobjecttool.cpp \
     document.cpp \
     documentmanager.cpp \
@@ -134,11 +138,14 @@ SOURCES += aboutdialog.cpp \
     flexiblescrollbar.cpp \
     flipmapobjects.cpp \
     geometry.cpp \
+    grouplayeritem.cpp \
+    iconcheckdelegate.cpp \
     id.cpp \
     imagecolorpickerwidget.cpp \
     imagelayeritem.cpp \
     languagemanager.cpp \
     layerdock.cpp \
+    layeritem.cpp \
     layermodel.cpp \
     layeroffsettool.cpp \
     magicwandtool.cpp \
@@ -155,6 +162,7 @@ SOURCES += aboutdialog.cpp \
     mapview.cpp \
     minimap.cpp \
     minimapdock.cpp \
+    minimaprenderer.cpp \
     movelayer.cpp \
     movemapobject.cpp \
     movemapobjecttogroup.cpp \
@@ -180,6 +188,7 @@ SOURCES += aboutdialog.cpp \
     raiselowerhelper.cpp \
     renamelayer.cpp \
     renameterrain.cpp \
+    reparentlayers.cpp \
     replacetileset.cpp \
     resizedialog.cpp \
     resizehelper.cpp \
@@ -191,9 +200,11 @@ SOURCES += aboutdialog.cpp \
     selectionrectangle.cpp \
     selectsametiletool.cpp \
     snaphelper.cpp \
+    stampactions.cpp \
     stampbrush.cpp \
     standardautoupdater.cpp \
     stylehelper.cpp \
+    swaptiles.cpp \
     terrainbrush.cpp \
     terraindock.cpp \
     terrainmodel.cpp \
@@ -202,7 +213,7 @@ SOURCES += aboutdialog.cpp \
     textpropertyedit.cpp \
     thumbnailrenderer.cpp \
     tileanimationeditor.cpp \
-    tilecollisioneditor.cpp \
+    tilecollisiondock.cpp \
     tiledapplication.cpp \
     tiledproxystyle.cpp \
     tilelayeritem.cpp \
@@ -212,6 +223,7 @@ SOURCES += aboutdialog.cpp \
     tilesetchanges.cpp \
     tilesetdock.cpp \
     tilesetdocument.cpp \
+    tilesetdocumentsmodel.cpp \
     tileseteditor.cpp \
     tilesetmodel.cpp \
     tilesetparametersedit.cpp \
@@ -223,6 +235,7 @@ SOURCES += aboutdialog.cpp \
     tilestampsdock.cpp \
     tmxmapformat.cpp \
     toolmanager.cpp \
+    treeviewcombobox.cpp \
     undodock.cpp \
     utils.cpp \
     varianteditorfactory.cpp \
@@ -231,6 +244,7 @@ SOURCES += aboutdialog.cpp \
 
 HEADERS += aboutdialog.h \
     abstractobjecttool.h \
+    abstracttileselectiontool.h \
     abstracttiletool.h \
     abstracttool.h \
     actionmanager.h \
@@ -259,6 +273,7 @@ HEADERS += aboutdialog.h \
     changepolygon.h \
     changeproperties.h \
     changeselectedarea.h \
+    changetile.h \
     changetileanimation.h \
     changetileimagesource.h \
     changetileobjectgroup.h \
@@ -272,6 +287,7 @@ HEADERS += aboutdialog.h \
     commanddialog.h \
     command.h \
     commandlineparser.h \
+    commandmanager.h \
     consoledock.h \
     containerhelpers.h \
     createellipseobjecttool.h \
@@ -281,6 +297,7 @@ HEADERS += aboutdialog.h \
     createpolylineobjecttool.h \
     createrectangleobjecttool.h \
     createscalableobjecttool.h \
+    createtextobjecttool.h \
     createtileobjecttool.h \
     document.h \
     documentmanager.h \
@@ -294,11 +311,14 @@ HEADERS += aboutdialog.h \
     flexiblescrollbar.h \
     flipmapobjects.h \
     geometry.h \
+    grouplayeritem.h \
+    iconcheckdelegate.h \
     id.h \
     imagecolorpickerwidget.h \
     imagelayeritem.h \
     languagemanager.h \
     layerdock.h \
+    layeritem.h \
     layermodel.h \
     layeroffsettool.h \
     macsupport.h \
@@ -315,6 +335,7 @@ HEADERS += aboutdialog.h \
     mapview.h \
     minimapdock.h \
     minimap.h \
+    minimaprenderer.h \
     movelayer.h \
     movemapobject.h \
     movemapobjecttogroup.h \
@@ -342,6 +363,7 @@ HEADERS += aboutdialog.h \
     rangeset.h \
     renamelayer.h \
     renameterrain.h \
+    reparentlayers.h \
     replacetileset.h \
     resizedialog.h \
     resizehelper.h \
@@ -354,9 +376,11 @@ HEADERS += aboutdialog.h \
     selectsametiletool.h \
     snaphelper.h \
     sparkleautoupdater.h \
+    stampactions.h \
     stampbrush.h \
     standardautoupdater.h \
     stylehelper.h \
+    swaptiles.h \
     terrainbrush.h \
     terraindock.h \
     terrainmodel.h \
@@ -365,7 +389,7 @@ HEADERS += aboutdialog.h \
     textpropertyedit.h \
     thumbnailrenderer.h \
     tileanimationeditor.h \
-    tilecollisioneditor.h \
+    tilecollisiondock.h \
     tiledapplication.h \
     tiledproxystyle.h \
     tilelayeritem.h \
@@ -375,6 +399,7 @@ HEADERS += aboutdialog.h \
     tilesetchanges.h \
     tilesetdock.h \
     tilesetdocument.h \
+    tilesetdocumentsmodel.h \
     tileseteditor.h \
     tilesetmodel.h \
     tilesetparametersedit.h \
@@ -386,6 +411,7 @@ HEADERS += aboutdialog.h \
     tilestampsdock.h \
     tmxmapformat.h \
     toolmanager.h \
+    treeviewcombobox.h \
     undocommands.h \
     undodock.h \
     utils.h \

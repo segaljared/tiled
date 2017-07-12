@@ -69,8 +69,10 @@ QRectF OrthogonalRenderer::boundingRect(const MapObject *object) const
 
         if (const Tile *tile = object->cell().tile()) {
             QSize imgSize = tile->size();
-            scale = QSizeF(objectSize.width() / imgSize.width(),
-                           objectSize.height() / imgSize.height());
+            if (!imgSize.isNull()) {
+                scale = QSizeF(objectSize.width() / imgSize.width(),
+                               objectSize.height() / imgSize.height());
+            }
             tileOffset = tile->offset();
         }
 
@@ -112,6 +114,10 @@ QRectF OrthogonalRenderer::boundingRect(const MapObject *object) const
                                                                  extraSpace + 1);
             break;
         }
+
+        case MapObject::Text:
+            boundingRect = object->bounds();
+            break;
         }
     }
 
@@ -130,9 +136,9 @@ QPainterPath OrthogonalRenderer::shape(const MapObject *object) const
             const QRectF bounds = object->bounds();
 
             if (bounds.isNull()) {
-                path.addEllipse(bounds.topLeft(), 20, 20);
+                path.addRect(object->x() - 10, object->y() - 10, 20, 20);
             } else {
-                path.addRoundedRect(bounds, 10, 10);
+                path.addRect(bounds);
             }
             break;
         }
@@ -162,6 +168,11 @@ QPainterPath OrthogonalRenderer::shape(const MapObject *object) const
             }
             break;
         }
+
+        case MapObject::Text: {
+            path.addRect(object->bounds());
+            break;
+        }
         }
     }
 
@@ -184,11 +195,7 @@ void OrthogonalRenderer::drawGrid(QPainter *painter, const QRectF &rect,
     const int endY = qMin(qCeil(rect.bottom()),
                           map()->height() * tileHeight + 1);
 
-    gridColor.setAlpha(128);
-
-    QPen gridPen(gridColor);
-    gridPen.setCosmetic(true);
-    gridPen.setDashPattern(QVector<qreal>() << 2 << 2);
+    QPen gridPen = makeGridPen(painter->device(), gridColor);
 
     if (startY < endY) {
         gridPen.setDashOffset(startY);
@@ -212,6 +219,9 @@ void OrthogonalRenderer::drawTileLayer(QPainter *painter,
 
     const int tileWidth = map()->tileWidth();
     const int tileHeight = map()->tileHeight();
+    if (tileWidth <= 0 || tileHeight <= 0)
+        return;
+
     const QPointF layerPos(layer->x() * tileWidth,
                            layer->y() * tileHeight);
 
@@ -320,23 +330,19 @@ void OrthogonalRenderer::drawMapObject(QPainter *painter,
     const Cell &cell = object->cell();
 
     if (!cell.isEmpty()) {
-        CellRenderer(painter).render(cell, QPointF(), object->size(),
+        const QSizeF size = object->size();
+        CellRenderer(painter).render(cell, QPointF(), size,
                                      CellRenderer::BottomLeft);
 
         if (testFlag(ShowTileObjectOutlines)) {
-            QSizeF imgSize;
             QPointF tileOffset;
 
-            if (const Tile *tile = cell.tile()) {
-                imgSize = tile->size();
+            if (const Tile *tile = cell.tile())
                 tileOffset = tile->offset();
-            } else {
-                imgSize = object->size();
-            }
 
             QRectF rect(QPointF(tileOffset.x(),
-                                tileOffset.y() - imgSize.height()),
-                        imgSize);
+                                tileOffset.y() - size.height()),
+                        size);
 
             QPen pen(Qt::SolidLine);
             pen.setCosmetic(true);
@@ -442,6 +448,14 @@ void OrthogonalRenderer::drawMapObject(QPainter *painter,
             painter->setPen(linePen);
             painter->setBrush(fillBrush);
             painter->drawEllipse(rect);
+            break;
+        }
+
+        case MapObject::Text: {
+            const auto& textData = object->textData();
+            painter->setFont(textData.font);
+            painter->setPen(textData.color);
+            painter->drawText(rect, textData.text, textData.textOption());
             break;
         }
         }

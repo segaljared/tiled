@@ -36,6 +36,8 @@
 #include <QPainter>
 #include <QVector2D>
 
+#include <cmath>
+
 using namespace Tiled;
 
 QRectF MapRenderer::boundingRect(const ImageLayer *imageLayer) const
@@ -81,6 +83,30 @@ QPolygonF MapRenderer::lineToPolygon(const QPointF &start, const QPointF &end)
     return polygon;
 }
 
+QPen MapRenderer::makeGridPen(const QPaintDevice *device, QColor color) const
+{
+#if QT_VERSION >= 0x050600
+    const qreal devicePixelRatio = device->devicePixelRatioF();
+#else
+    const int devicePixelRatio = device->devicePixelRatio();
+#endif
+
+#ifdef Q_OS_MAC
+    const qreal dpiScale = 1.0f;
+#else
+    const qreal dpiScale = device->logicalDpiX() / 96.0;
+#endif
+
+    const qreal dashLength = std::ceil(2.0 * dpiScale * devicePixelRatio);
+
+    color.setAlpha(128);
+
+    QPen pen(color);
+    pen.setCosmetic(true);
+    pen.setDashPattern({dashLength, dashLength});
+    return pen;
+}
+
 
 static void renderMissingImageMarker(QPainter &painter, const QRectF &rect)
 {
@@ -106,10 +132,11 @@ static bool hasOpenGLEngine(const QPainter *painter)
             type == QPaintEngine::OpenGL2);
 }
 
-CellRenderer::CellRenderer(QPainter *painter)
+CellRenderer::CellRenderer(QPainter *painter, const CellType cellType)
     : mPainter(painter)
     , mTile(nullptr)
     , mIsOpenGL(hasOpenGLEngine(painter))
+    , mCellType(cellType)
 {
 }
 
@@ -125,7 +152,11 @@ CellRenderer::CellRenderer(QPainter *painter)
 void CellRenderer::render(const Cell &cell, const QPointF &pos, const QSizeF &size, Origin origin)
 {
     const Tile *tile = cell.tile();
-    if (!tile) {
+
+    if (tile)
+        tile = tile->currentFrameTile();
+
+    if (!tile || tile->image().isNull()) {
         QRectF target { pos - QPointF(0, size.height()), size };
         if (origin == BottomCenter)
             target.moveLeft(target.left() - size.width() / 2);
@@ -133,15 +164,14 @@ void CellRenderer::render(const Cell &cell, const QPointF &pos, const QSizeF &si
         return;
     }
 
-    tile = tile->currentFrameTile();
-    if (!tile)
-        return;
-
     if (mTile != tile)
         flush();
 
     const QPixmap &image = tile->image();
     const QSizeF imageSize = image.size();
+    if (imageSize.isEmpty())
+        return;
+
     const QSizeF scale(size.width() / imageSize.width(), size.height() / imageSize.height());
     const QPoint offset = tile->offset();
     const QPointF sizeHalf = QPointF(size.width() / 2, size.height() / 2);
@@ -164,7 +194,16 @@ void CellRenderer::render(const Cell &cell, const QPointF &pos, const QSizeF &si
     if (origin == BottomCenter)
         fragment.x -= sizeHalf.x();
 
-    if (cell.flippedAntiDiagonally()) {
+    if (mCellType == HexagonalCells) {
+
+        if (cell.flippedAntiDiagonally())
+            fragment.rotation += 60;
+
+        if (cell.rotatedHexagonal120())
+            fragment.rotation += 120;
+
+    } else if (cell.flippedAntiDiagonally()) {
+        Q_ASSERT(mCellType == OrthogonalCells);
         fragment.rotation = 90;
         
         flippedHorizontally = cell.flippedVertically();

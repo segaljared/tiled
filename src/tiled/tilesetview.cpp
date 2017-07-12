@@ -103,8 +103,6 @@ static void paintCorners(QPainter *painter,
                          unsigned corners,
                          const QRect &rect)
 {
-    // FIXME: This only works right for orthogonal maps right now
-
     const int hx = rect.width() / 2;
     const int hy = rect.height() / 2;
 
@@ -175,6 +173,17 @@ static void paintCorners(QPainter *painter,
     }
 }
 
+static void setCosmeticPen(QPainter *painter, const QBrush &brush, qreal width)
+{
+#if QT_VERSION >= 0x050600
+    QPen pen(brush, width * painter->device()->devicePixelRatioF());
+#else
+    QPen pen(brush, width * painter->device()->devicePixelRatio());
+#endif
+    pen.setCosmetic(true);
+    painter->setPen(pen);
+}
+
 static void paintTerrainOverlay(QPainter *painter,
                                 unsigned terrain,
                                 int terrainTypeId,
@@ -187,7 +196,7 @@ static void paintTerrainOverlay(QPainter *painter,
 
     // Draw the "any terrain" background
     painter->setBrush(QColor(128, 128, 128, 100));
-    painter->setPen(QPen(Qt::gray, 2));
+    setCosmeticPen(painter, Qt::gray, 2);
     paintCorners(painter, invertCorners(terrainCorners(terrain, -1)), rect);
 
     if (terrainTypeId != -1) {
@@ -196,17 +205,39 @@ static void paintTerrainOverlay(QPainter *painter,
         // Draw the shadow
         painter->translate(1, 1);
         painter->setBrush(Qt::NoBrush);
-        painter->setPen(QPen(Qt::black, 2));
+        setCosmeticPen(painter, Qt::black, 2);
         paintCorners(painter, corners, rect);
 
         // Draw the foreground
         painter->translate(-1, -1);
         painter->setBrush(QColor(color.red(), color.green(), color.blue(), 100));
-        painter->setPen(QPen(color, 2));
+        setCosmeticPen(painter, color, 2);
         paintCorners(painter, corners, rect);
     }
 
     painter->restore();
+}
+
+static QTransform tilesetGridTransform(const Tileset &tileset, QPoint tileCenter)
+{
+    QTransform transform;
+
+    if (tileset.orientation() == Tileset::Isometric) {
+        const QSize gridSize = tileset.gridSize();
+
+        transform.translate(tileCenter.x(), tileCenter.y());
+
+        const auto ratio = (double) gridSize.height() / gridSize.width();
+        const auto scaleX = 1.0 / sqrt(2.0);
+        const auto scaleY = scaleX * ratio;
+        transform.scale(scaleX, scaleY);
+
+        transform.rotate(45.0);
+
+        transform.translate(-tileCenter.x(), -tileCenter.y());
+    }
+
+    return transform;
 }
 
 void TileDelegate::paint(QPainter *painter,
@@ -285,20 +316,25 @@ void TileDelegate::paint(QPainter *painter,
         painter->restore();
     }
 
+    const auto highlight = option.palette.highlight();
+
     // Overlay with highlight color when selected
     if (option.state & QStyle::State_Selected) {
         const qreal opacity = painter->opacity();
         painter->setOpacity(0.5);
-        painter->fillRect(targetRect, option.palette.highlight());
+        painter->fillRect(targetRect, highlight);
         painter->setOpacity(opacity);
     }
 
     if (mTilesetView->isEditTerrain()) {
+        painter->save();
+        painter->setTransform(tilesetGridTransform(*tile->tileset(), targetRect.center()), true);
+
         const unsigned terrain = tile->terrain();
 
         paintTerrainOverlay(painter, terrain,
                             mTilesetView->terrainId(), targetRect,
-                            option.palette.highlight().color());
+                            highlight.color());
 
         // Overlay with terrain corner indication when hovered
         if (index == mTilesetView->hoveredIndex()) {
@@ -314,13 +350,14 @@ void TileDelegate::paint(QPainter *painter,
             painter->setBrush(option.palette.highlight());
             painter->setClipRect(targetRect);
             painter->setRenderHint(QPainter::Antialiasing);
-            QPen pen(option.palette.highlight().color().darker(), 2);
-            painter->setPen(pen);
+            setCosmeticPen(painter, highlight.color().darker(), 2);
             painter->drawEllipse(pos,
                                  targetRect.width() / 3,
                                  targetRect.height() / 3);
             painter->restore();
         }
+
+        painter->restore();
     }
 }
 
@@ -357,7 +394,7 @@ QSize TileDelegate::sizeHint(const QStyleOptionViewItem & /* option */,
 
 TilesetView::TilesetView(QWidget *parent)
     : QTableView(parent)
-    , mZoomable(nullptr)
+    , mZoomable(new Zoomable(this))
     , mTilesetDocument(nullptr)
     , mMarkAnimatedTiles(true)
     , mEditTerrain(false)
@@ -372,6 +409,7 @@ TilesetView::TilesetView(QWidget *parent)
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     setItemDelegate(new TileDelegate(this, this));
     setShowGrid(false);
+    setTabKeyNavigation(false);
 
     QHeaderView *hHeader = horizontalHeader();
     QHeaderView *vHeader = verticalHeader();
@@ -396,6 +434,8 @@ TilesetView::TilesetView(QWidget *parent)
 
     connect(StyleHelper::instance(), &StyleHelper::styleApplied,
             this, &TilesetView::updateBackgroundColor);
+
+    connect(mZoomable, SIGNAL(scaleChanged(qreal)), SLOT(adjustScale()));
 }
 
 void TilesetView::setTilesetDocument(TilesetDocument *tilesetDocument)
@@ -405,7 +445,7 @@ void TilesetView::setTilesetDocument(TilesetDocument *tilesetDocument)
 
 QSize TilesetView::sizeHint() const
 {
-    return QSize(130, 100);
+    return Utils::dpiScaled(QSize(130, 100));
 }
 
 int TilesetView::sizeHintForColumn(int column) const
@@ -434,21 +474,9 @@ int TilesetView::sizeHintForRow(int row) const
     return qRound(tileHeight * scale()) + (mDrawGrid ? 1 : 0);
 }
 
-void TilesetView::setZoomable(Zoomable *zoomable)
-{
-    if (mZoomable)
-        mZoomable->disconnect(this);
-
-    if (zoomable)
-        connect(zoomable, SIGNAL(scaleChanged(qreal)), SLOT(adjustScale()));
-
-    mZoomable = zoomable;
-    adjustScale();
-}
-
 qreal TilesetView::scale() const
 {
-    return mZoomable ? mZoomable->scale() : 1;
+    return mZoomable->scale();
 }
 
 void TilesetView::setModel(QAbstractItemModel *model)
@@ -468,13 +496,38 @@ void TilesetView::setMarkAnimatedTiles(bool enabled)
 
 bool TilesetView::event(QEvent *event)
 {
-    if (mZoomable && event->type() == QEvent::Gesture) {
+    if (event->type() == QEvent::Gesture) {
         QGestureEvent *gestureEvent = static_cast<QGestureEvent *>(event);
         if (QGesture *gesture = gestureEvent->gesture(Qt::PinchGesture))
             mZoomable->handlePinchGesture(static_cast<QPinchGesture *>(gesture));
+    } else if (event->type() == QEvent::ShortcutOverride) {
+        auto keyEvent = static_cast<QKeyEvent*>(event);
+        if (Utils::isZoomInShortcut(keyEvent) ||
+                Utils::isZoomOutShortcut(keyEvent) ||
+                Utils::isResetZoomShortcut(keyEvent)) {
+            event->accept();
+            return true;
+        }
     }
 
     return QTableView::event(event);
+}
+
+void TilesetView::keyPressEvent(QKeyEvent *event)
+{
+    if (Utils::isZoomInShortcut(event)) {
+        mZoomable->zoomIn();
+        return;
+    }
+    if (Utils::isZoomOutShortcut(event)) {
+        mZoomable->zoomOut();
+        return;
+    }
+    if (Utils::isResetZoomShortcut(event)) {
+        mZoomable->resetZoom();
+        return;
+    }
+    return QTableView::keyPressEvent(event);
 }
 
 void TilesetView::setEditTerrain(bool enabled)
@@ -557,9 +610,12 @@ void TilesetView::mouseMoveEvent(QMouseEvent *event)
     if (hoveredIndex.isValid()) {
         const QPoint center = visualRect(hoveredIndex).center();
 
-        if (pos.x() > center.x())
+        const auto t = tilesetGridTransform(*tilesetDocument()->tileset(), center);
+        const auto mappedPos = t.inverted().map(pos);
+
+        if (mappedPos.x() > center.x())
             hoveredCorner += 1;
-        if (pos.y() > center.y())
+        if (mappedPos.y() > center.y())
             hoveredCorner += 2;
     }
 
@@ -610,8 +666,7 @@ void TilesetView::leaveEvent(QEvent *event)
  */
 void TilesetView::wheelEvent(QWheelEvent *event)
 {
-    if (mZoomable &&
-            event->modifiers() & Qt::ControlModifier &&
+    if (event->modifiers() & Qt::ControlModifier &&
             event->orientation() == Qt::Vertical)
     {
         mZoomable->handleWheelDelta(event->delta());
@@ -658,6 +713,28 @@ void TilesetView::contextMenuEvent(QContextMenuEvent *event)
             Utils::setThemeIcon(tileProperties, "document-properties");
             connect(tileProperties, SIGNAL(triggered()),
                     SLOT(editTileProperties()));
+        } else {
+            // Assuming we're used in the MapEditor
+
+            // Enable "swap" if there are exactly 2 tiles selected
+            bool exactlyTwoTilesSelected =
+                    (selectionModel()->selectedIndexes().size() == 2);
+
+            QAction *swapTilesAction = menu.addAction(tr("&Swap Tiles"));
+            swapTilesAction->setEnabled(exactlyTwoTilesSelected);
+            connect(swapTilesAction, SIGNAL(triggered()),
+                    SLOT(swapTiles()));
+
+            bool onlyOneTileSelected =
+                    (selectionModel()->selectedIndexes().size() == 1);
+
+            // TODO: check that at least one object is selected
+
+            QAction *changeSelectedMapObjectsTileAction =
+                    menu.addAction(tr("&Replace Tile of Selected Objects"));
+            changeSelectedMapObjectsTileAction->setEnabled(onlyOneTileSelected);
+            connect(changeSelectedMapObjectsTileAction, &QAction::triggered,
+                    this, &TilesetView::changeSelectedMapObjectsTile);
         }
 
         menu.addSeparator();
@@ -696,6 +773,30 @@ void TilesetView::editTileProperties()
 
     mTilesetDocument->setCurrentObject(tile);
     emit mTilesetDocument->editCurrentObject();
+}
+
+void TilesetView::swapTiles()
+{
+    const QModelIndexList selectedIndexes = selectionModel()->selectedIndexes();
+    if (selectedIndexes.size() != 2)
+        return;
+
+    const TilesetModel *model = tilesetModel();
+    Tile *tile1 = model->tileAt(selectedIndexes[0]);
+    Tile *tile2 = model->tileAt(selectedIndexes[1]);
+
+    if (!tile1 || !tile2)
+        return;
+
+    emit swapTilesRequested(tile1, tile2);
+}
+
+void TilesetView::changeSelectedMapObjectsTile()
+{
+    const QModelIndexList selectedIndexes = selectionModel()->selectedIndexes();
+    const TilesetModel *model = tilesetModel();
+    Tile *tile = model->tileAt(selectedIndexes[0]);
+    emit changeSelectedMapObjectsTileRequested(tile);
 }
 
 void TilesetView::setDrawGrid(bool drawGrid)

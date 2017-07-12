@@ -95,6 +95,9 @@ void Eraser::languageChanged()
 void Eraser::doErase(bool continuation)
 {
     TileLayer *tileLayer = currentTileLayer();
+    if (!tileLayer->isUnlocked())
+        return;
+
     QRegion eraseRegion(eraseArea());
 
     if (continuation) {
@@ -112,7 +115,7 @@ void Eraser::doErase(bool continuation)
     erase->setMergeable(continuation);
 
     mapDocument()->undoStack()->push(erase);
-    mapDocument()->emitRegionEdited(eraseRegion, tileLayer);
+    emit mapDocument()->regionEdited(eraseRegion, tileLayer);
 }
 
 QRect Eraser::eraseArea() const

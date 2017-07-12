@@ -19,8 +19,7 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef PREFERENCES_H
-#define PREFERENCES_H
+#pragma once
 
 #include <QColor>
 #include <QDate>
@@ -92,6 +91,9 @@ public:
     bool dtdEnabled() const;
     void setDtdEnabled(bool enabled);
 
+    bool safeSavingEnabled() const;
+    void setSafeSavingEnabled(bool enabled);
+
     QString language() const;
     void setLanguage(const QString &language);
 
@@ -131,6 +133,14 @@ public:
     bool isPatron() const;
     void setPatron(bool isPatron);
 
+    bool shouldShowPatreonDialog() const;
+    void setPatreonDialogReminder(const QDate &date);
+
+    enum { MaxRecentFiles = 8 };
+    QStringList recentFiles() const;
+    QString fileDialogStartLocation() const;
+    void addRecentFile(const QString &fileName);
+
     bool openLastFilesOnStartup() const;
 
     bool checkForUpdates() const;
@@ -157,6 +167,8 @@ public slots:
     void setAutomappingDrawing(bool enabled);
     void setOpenLastFilesOnStartup(bool load);
     void setPluginEnabled(const QString &fileName, bool enabled);
+
+    void clearRecentFiles();
 
 signals:
     void showGridChanged(bool showGrid);
@@ -186,6 +198,9 @@ signals:
     void stampsDirectoryChanged(const QString &stampsDirectory);
 
     void isPatronChanged();
+
+    void recentFilesChanged();
+
     void checkForUpdatesChanged();
 
 private:
@@ -220,6 +235,7 @@ private:
     Map::LayerDataFormat mLayerDataFormat;
     Map::RenderOrder mMapRenderOrder;
     bool mDtdEnabled;
+    bool mSafeSavingEnabled;
     QString mLanguage;
     bool mReloadTilesetsOnChange;
     bool mUseOpenGL;
@@ -232,6 +248,7 @@ private:
     QString mObjectTypesFile;
 
     QDate mFirstRun;
+    QDate mPatreonDialogTime;
     int mRunCount;
     bool mIsPatron;
     bool mCheckForUpdates;
@@ -253,6 +270,11 @@ inline QColor Preferences::baseColor() const
 inline QColor Preferences::selectionColor() const
 {
     return mSelectionColor;
+}
+
+inline bool Preferences::safeSavingEnabled() const
+{
+    return mSafeSavingEnabled;
 }
 
 inline Preferences::ObjectLabelVisiblity Preferences::objectLabelVisibility() const
@@ -287,5 +309,3 @@ inline bool Preferences::openLastFilesOnStartup() const
 
 } // namespace Internal
 } // namespace Tiled
-
-#endif // PREFERENCES_H

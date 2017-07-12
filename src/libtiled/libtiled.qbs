@@ -4,7 +4,7 @@ DynamicLibrary {
     targetName: "tiled"
 
     Depends { name: "cpp" }
-    Depends { name: "Qt"; submodules: "gui" }
+    Depends { name: "Qt"; submodules: "gui"; versionAtLeast: "5.4" }
 
     Properties {
         condition: !(qbs.toolchain.contains("msvc") ||
@@ -40,6 +40,10 @@ DynamicLibrary {
         "filesystemwatcher.h",
         "gidmapper.cpp",
         "gidmapper.h",
+        "grouplayer.cpp",
+        "grouplayer.h",
+        "hex.cpp",
+        "hex.h",
         "hexagonalrenderer.cpp",
         "hexagonalrenderer.h",
         "imagelayer.cpp",
@@ -75,6 +79,8 @@ DynamicLibrary {
         "pluginmanager.h",
         "properties.cpp",
         "properties.h",
+        "savefile.cpp",
+        "savefile.h",
         "staggeredrenderer.cpp",
         "staggeredrenderer.h",
         "tile.cpp",
@@ -94,6 +100,13 @@ DynamicLibrary {
         "varianttomapconverter.cpp",
         "varianttomapconverter.h",
     ]
+
+    Group {
+        condition: project.installHeaders
+        qbs.install: true
+        qbs.installDir: "include/tiled"
+        fileTagsFilter: "hpp"
+    }
 
     Export {
         Depends { name: "cpp" }
