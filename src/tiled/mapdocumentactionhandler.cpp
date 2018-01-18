@@ -227,6 +227,8 @@ void MapDocumentActionHandler::setMapDocument(MapDocument *mapDocument)
                 this, &MapDocumentActionHandler::updateActions);
         connect(mapDocument, &MapDocument::selectedObjectsChanged,
                 this, &MapDocumentActionHandler::updateActions);
+        connect(mapDocument, &MapDocument::mapChanged,
+                this, &MapDocumentActionHandler::updateActions);
     }
 
     emit mapDocumentChanged(mMapDocument);
@@ -336,8 +338,9 @@ void MapDocumentActionHandler::selectAll()
         return;
 
     if (TileLayer *tileLayer = layer->asTileLayer()) {
-        QRect all(tileLayer->x(), tileLayer->y(),
-                  tileLayer->width(), tileLayer->height());
+        QRect all = tileLayer->rect();
+        if (mMapDocument->map()->infinite())
+            all = tileLayer->bounds();
 
         if (mMapDocument->selectedArea() == all)
             return;
@@ -634,6 +637,12 @@ void MapDocumentActionHandler::moveObjectsToGroup(ObjectGroup *objectGroup)
     }
 }
 
+void MapDocumentActionHandler::selectAllInstances(const ObjectTemplate *objectTemplate)
+{
+    if (mMapDocument)
+        mMapDocument->selectAllInstances(objectTemplate);
+}
+
 void MapDocumentActionHandler::updateActions()
 {
     Map *map = nullptr;
@@ -660,6 +669,7 @@ void MapDocumentActionHandler::updateActions()
     }
 
     mActionSelectAll->setEnabled(map);
+    mActionSelectInverse->setEnabled(map);
 
     if (currentLayer) {
         if (currentLayer->asTileLayer()) {
@@ -675,7 +685,8 @@ void MapDocumentActionHandler::updateActions()
 
 
     mActionCropToSelection->setEnabled(!selection.isEmpty());
-    mActionAutocrop->setEnabled(currentLayer && currentLayer->isTileLayer());
+
+    mActionAutocrop->setEnabled(currentLayer && currentLayer->isTileLayer() && !map->infinite());
 
     mActionAddTileLayer->setEnabled(map);
     mActionAddObjectGroup->setEnabled(map);

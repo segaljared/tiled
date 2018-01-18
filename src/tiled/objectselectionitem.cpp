@@ -34,6 +34,8 @@
 #include <QGuiApplication>
 #include <QTimerEvent>
 
+#include "qtcompat_p.h"
+
 #include <cmath>
 
 namespace Tiled {
@@ -49,14 +51,14 @@ static QPointF alignmentOffset(QRectF &r, Alignment alignment)
 {
     switch (alignment) {
     case TopLeft:       break;
-    case Top:           return QPointF(r.width() / 2, 0);               break;
-    case TopRight:      return QPointF(r.width(), 0);                   break;
-    case Left:          return QPointF(0, r.height() / 2);              break;
-    case Center:        return QPointF(r.width() / 2, r.height() / 2);  break;
-    case Right:         return QPointF(r.width(), r.height() / 2);      break;
-    case BottomLeft:    return QPointF(0, r.height());                  break;
-    case Bottom:        return QPointF(r.width() / 2, r.height());      break;
-    case BottomRight:   return QPointF(r.width(), r.height());          break;
+    case Top:           return QPointF(r.width() / 2, 0);
+    case TopRight:      return QPointF(r.width(), 0);
+    case Left:          return QPointF(0, r.height() / 2);
+    case Center:        return QPointF(r.width() / 2, r.height() / 2);
+    case Right:         return QPointF(r.width(), r.height() / 2);
+    case BottomLeft:    return QPointF(0, r.height());
+    case Bottom:        return QPointF(r.width() / 2, r.height());
+    case BottomRight:   return QPointF(r.width(), r.height());
     }
     return QPointF();
 }
@@ -108,6 +110,8 @@ static QRectF objectBounds(const MapObject *object,
             QPolygonF screenPolygon = renderer->pixelToScreenCoords(bounds);
             return screenPolygon.boundingRect();
         }
+        case MapObject::Point:
+            return renderer->shape(object).boundingRect();
         case MapObject::Polygon:
         case MapObject::Polyline: {
             // Alignment is irrelevant for polygon objects since they have no size
@@ -198,12 +202,7 @@ void MapObjectOutline::paint(QPainter *painter,
     painter->setPen(pen);
     painter->drawLines(lines, 4);
 
-#if QT_VERSION >= 0x050600
     const qreal devicePixelRatio = painter->device()->devicePixelRatioF();
-#else
-    const int devicePixelRatio = painter->device()->devicePixelRatio();
-#endif
-
     const qreal dashLength = std::ceil(Utils::dpiScaled(3) * devicePixelRatio);
 
     // Draw a black dashed line above the white line
@@ -325,8 +324,10 @@ void MapObjectLabel::paint(QPainter *painter,
 }
 
 
-ObjectSelectionItem::ObjectSelectionItem(MapDocument *mapDocument)
-    : mMapDocument(mapDocument)
+ObjectSelectionItem::ObjectSelectionItem(MapDocument *mapDocument,
+                                         QGraphicsItem *parent)
+    : QGraphicsObject(parent)
+    , mMapDocument(mapDocument)
 {
     setFlag(QGraphicsItem::ItemHasNoContents);
 
@@ -347,6 +348,9 @@ ObjectSelectionItem::ObjectSelectionItem(MapDocument *mapDocument)
 
     connect(mapDocument, &MapDocument::objectsChanged,
             this, &ObjectSelectionItem::syncOverlayItems);
+
+    connect(mapDocument, &MapDocument::hoveredMapObjectChanged,
+            this, &ObjectSelectionItem::hoveredMapObjectChanged);
 
     connect(mapDocument, &MapDocument::objectsAdded,
             this, &ObjectSelectionItem::objectsAdded);
@@ -373,6 +377,35 @@ void ObjectSelectionItem::selectedObjectsChanged()
 {
     addRemoveObjectLabels();
     addRemoveObjectOutlines();
+}
+
+void ObjectSelectionItem::hoveredMapObjectChanged(MapObject *object,
+                                                  MapObject *previous)
+{
+    Preferences *prefs = Preferences::instance();
+    auto visibility = prefs->objectLabelVisibility();
+
+    if (visibility == Preferences::AllObjectLabels)
+        return;
+
+    bool labelForHoveredObject = prefs->labelForHoveredObject();
+
+    // Make sure any newly hovered object has a label
+    if (object && labelForHoveredObject && !mObjectLabels.contains(object)) {
+        MapObjectLabel *labelItem = new MapObjectLabel(object, this);
+        labelItem->syncWithMapObject(mMapDocument->renderer());
+        mObjectLabels.insert(object, labelItem);
+    }
+
+    // Maybe remove the label from the previous object
+    if (MapObjectLabel *label = mObjectLabels.value(previous)) {
+        if (visibility == Preferences::SelectedObjectLabels)
+            if (mMapDocument->selectedObjects().contains(previous))
+                return;
+
+        delete label;
+        mObjectLabels.remove(previous);
+    }
 }
 
 void ObjectSelectionItem::mapChanged()
@@ -528,6 +561,11 @@ void ObjectSelectionItem::addRemoveObjectLabels()
         labelItems.insert(object, labelItem);
     };
 
+    Preferences *prefs = Preferences::instance();
+    if (prefs->labelForHoveredObject())
+        if (MapObject *object = mMapDocument->hoveredMapObject())
+            ensureLabel(object);
+
     switch (objectLabelVisibility()) {
     case Preferences::AllObjectLabels: {
         LayerIterator iterator(mMapDocument->map());
@@ -541,11 +579,12 @@ void ObjectSelectionItem::addRemoveObjectLabels()
         }
     }
         // We want labels on selected objects regardless layer visibility
-        /*FALLTHROUGH*/
+        Q_FALLTHROUGH();
 
     case Preferences::SelectedObjectLabels:
         for (MapObject *object : mMapDocument->selectedObjects())
             ensureLabel(object);
+        break;
 
     case Preferences::NoObjectLabels:
         break;

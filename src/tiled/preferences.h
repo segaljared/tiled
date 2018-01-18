@@ -67,6 +67,9 @@ public:
     ObjectLabelVisiblity objectLabelVisibility() const;
     void setObjectLabelVisibility(ObjectLabelVisiblity visiblity);
 
+    bool labelForHoveredObject() const;
+    void setLabelForHoveredObject(bool enabled);
+
     enum ApplicationStyle {
         SystemDefaultStyle,
         FusionStyle,
@@ -103,11 +106,11 @@ public:
     bool useOpenGL() const { return mUseOpenGL; }
     void setUseOpenGL(bool useOpenGL);
 
-    const ObjectTypes &objectTypes() const { return mObjectTypes; }
     void setObjectTypes(const ObjectTypes &objectTypes);
 
     enum FileType {
         ObjectTypesFile,
+        ObjectTemplateFile,
         ImageFile,
         ExportedFile,
         ExternalTileset
@@ -123,6 +126,9 @@ public:
 
     QString stampsDirectory() const;
     void setStampsDirectory(const QString &stampsDirectory);
+
+    QString templatesDirectory() const;
+    void setTemplatesDirectory(const QString &path);
 
     QString objectTypesFile() const;
     void setObjectTypesFile(const QString &filePath);
@@ -146,6 +152,8 @@ public:
     bool checkForUpdates() const;
     void setCheckForUpdates(bool on);
 
+    bool wheelZoomsByDefault() const;
+
     /**
      * Provides access to the QSettings instance to allow storing/retrieving
      * arbitrary values. The naming style for groups and keys is CamelCase.
@@ -167,6 +175,7 @@ public slots:
     void setAutomappingDrawing(bool enabled);
     void setOpenLastFilesOnStartup(bool load);
     void setPluginEnabled(const QString &fileName, bool enabled);
+    void setWheelZoomsByDefault(bool mode);
 
     void clearRecentFiles();
 
@@ -183,6 +192,7 @@ signals:
     void highlightCurrentLayerChanged(bool highlight);
     void showTilesetGridChanged(bool showTilesetGrid);
     void objectLabelVisibilityChanged(ObjectLabelVisiblity);
+    void labelForHoveredObjectChanged(bool enabled);
 
     void applicationStyleChanged(ApplicationStyle);
     void baseColorChanged(const QColor &baseColor);
@@ -196,6 +206,7 @@ signals:
 
     void mapsDirectoryChanged();
     void stampsDirectoryChanged(const QString &stampsDirectory);
+    void templatesDirectoryChanged(const QString &templatesDirectory);
 
     void isPatronChanged();
 
@@ -228,6 +239,7 @@ private:
     bool mShowTilesetGrid;
     bool mOpenLastFilesOnStartup;
     ObjectLabelVisiblity mObjectLabelVisibility;
+    bool mLabelForHoveredObject;
     ApplicationStyle mApplicationStyle;
     QColor mBaseColor;
     QColor mSelectionColor;
@@ -239,12 +251,12 @@ private:
     QString mLanguage;
     bool mReloadTilesetsOnChange;
     bool mUseOpenGL;
-    ObjectTypes mObjectTypes;
 
     bool mAutoMapDrawing;
 
     QString mMapsDirectory;
     QString mStampsDirectory;
+    QString mTemplatesDirectory;
     QString mObjectTypesFile;
 
     QDate mFirstRun;
@@ -252,6 +264,7 @@ private:
     int mRunCount;
     bool mIsPatron;
     bool mCheckForUpdates;
+    bool mWheelZoomsByDefault;
 
     static Preferences *mInstance;
 };
@@ -282,6 +295,11 @@ inline Preferences::ObjectLabelVisiblity Preferences::objectLabelVisibility() co
     return mObjectLabelVisibility;
 }
 
+inline bool Preferences::labelForHoveredObject() const
+{
+    return mLabelForHoveredObject;
+}
+
 inline QDate Preferences::firstRun() const
 {
     return mFirstRun;
@@ -305,6 +323,11 @@ inline bool Preferences::checkForUpdates() const
 inline bool Preferences::openLastFilesOnStartup() const
 {
     return mOpenLastFilesOnStartup;
+}
+
+inline bool Preferences::wheelZoomsByDefault() const
+{
+    return mWheelZoomsByDefault;
 }
 
 } // namespace Internal

@@ -36,6 +36,7 @@ Eraser::Eraser(QObject *parent)
                        QIcon(QLatin1String(
                                ":images/22x22/stock-tool-eraser.png")),
                        QKeySequence(tr("E")),
+                       nullptr,
                        parent)
     , mMode(Nothing)
 {
@@ -108,7 +109,9 @@ void Eraser::doErase(bool continuation)
     }
     mLastTilePos = tilePosition();
 
-    if (!tileLayer->bounds().intersects(eraseRegion.boundingRect()))
+    eraseRegion = eraseRegion.intersected(tileLayer->bounds());
+
+    if (eraseRegion.isEmpty())
         return;
 
     EraseTiles *erase = new EraseTiles(mapDocument(), tileLayer, eraseRegion);

@@ -63,7 +63,7 @@ public:
         , mPainterScale(1)
     {}
 
-    virtual ~MapRenderer() {}
+    virtual ~MapRenderer();
 
     /**
      * Returns the map this renderer is associated with.
@@ -71,9 +71,10 @@ public:
     const Map *map() const;
 
     /**
-     * Returns the size in pixels of the map associated with this renderer.
+     * Returns the bounding rectangle in pixels of the map associated with
+     * this renderer.
      */
-    virtual QSize mapSize() const = 0;
+    virtual QRect mapBoundingRect() const = 0;
 
     /**
      * Returns the bounding rectangle in pixels of the given \a rect given in
@@ -102,6 +103,12 @@ public:
      * possible.
      */
     virtual QPainterPath shape(const MapObject *object) const = 0;
+
+    /**
+     * Returns the shape of the given point \a object, conforming to the
+     * shape() method requirements.
+     */
+    QPainterPath pointShape(const MapObject *object) const;
 
     /**
      * Draws the tile grid in the specified \a rect using the given
@@ -136,6 +143,11 @@ public:
     virtual void drawMapObject(QPainter *painter,
                                const MapObject *object,
                                const QColor &color) const = 0;
+
+    /**
+     * Draws the a pin in the given \a color using the \a painter.
+     */
+    void drawPointObject(QPainter *painter, const QColor &color) const;
 
     /**
      * Draws the given image \a layer using the given \a painter.

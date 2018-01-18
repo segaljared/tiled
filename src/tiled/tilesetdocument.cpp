@@ -23,10 +23,12 @@
 #include "mapdocument.h"
 #include "map.h"
 #include "terrain.h"
+#include "wangset.h"
 #include "tile.h"
 #include "tilesetformat.h"
 #include "tilesetmanager.h"
 #include "tilesetterrainmodel.h"
+#include "tilesetwangsetmodel.h"
 
 #include <QCoreApplication>
 #include <QFileInfo>
@@ -58,6 +60,8 @@ TilesetDocument::TilesetDocument(const SharedTileset &tileset, const QString &fi
     : Document(TilesetDocumentType, fileName)
     , mTileset(tileset)
     , mTerrainModel(new TilesetTerrainModel(this, this))
+    , mWangSetModel(new TilesetWangSetModel(this, this))
+    , mWangColorModel(nullptr)
 {
     mCurrentObject = tileset.data();
 
@@ -76,6 +80,9 @@ TilesetDocument::TilesetDocument(const SharedTileset &tileset, const QString &fi
     connect(mTerrainModel, &TilesetTerrainModel::terrainRemoved,
             this, &TilesetDocument::onTerrainRemoved);
 
+    connect(mWangSetModel, &TilesetWangSetModel::wangSetRemoved,
+            this, &TilesetDocument::onWangSetRemoved);
+
     TilesetManager *tilesetManager = TilesetManager::instance();
     tilesetManager->addReference(tileset);
 }
@@ -90,7 +97,7 @@ bool TilesetDocument::save(const QString &fileName, QString *error)
 {
     TilesetFormat *tilesetFormat = mTileset->format();
 
-    if (!tilesetFormat || !(tilesetFormat->capabilities() & MapFormat::Write))
+    if (!tilesetFormat || !(tilesetFormat->capabilities() & FileFormat::Write))
         return false;
 
     // todo: workaround to avoid writing the tileset like an external tileset reference
@@ -169,6 +176,17 @@ void TilesetDocument::setWriterFormat(TilesetFormat *format)
     mTileset->setFormat(format);
 }
 
+TilesetFormat* TilesetDocument::exportFormat() const
+{
+    return mExportFormat;
+}
+
+void TilesetDocument::setExportFormat(FileFormat *format)
+{
+    mExportFormat = qobject_cast<TilesetFormat*>(format);
+    Q_ASSERT(mExportFormat);
+}
+
 QString TilesetDocument::displayName() const
 {
     QString displayName;
@@ -189,7 +207,7 @@ QString TilesetDocument::displayName() const
 
 /**
  * Exchanges the tileset data of the tileset wrapped by this document with the
- * data in the given \a tileset, and vica-versa.
+ * data in the given \a tileset, and vice-versa.
  */
 void TilesetDocument::swapTileset(SharedTileset &tileset)
 {
@@ -293,7 +311,7 @@ void TilesetDocument::setTileType(Tile *tile, const QString &type)
         emit mapDocument->tileTypeChanged(tile);
 }
 
-void TilesetDocument::setTileImage(Tile *tile, const QPixmap &image, const QString &source)
+void TilesetDocument::setTileImage(Tile *tile, const QPixmap &image, const QUrl &source)
 {
     Q_ASSERT(tile->tileset() == mTileset.data());
 
@@ -332,6 +350,12 @@ void TilesetDocument::onPropertiesChanged(Object *object)
 void TilesetDocument::onTerrainRemoved(Terrain *terrain)
 {
     if (terrain == mCurrentObject)
+        setCurrentObject(nullptr);
+}
+
+void TilesetDocument::onWangSetRemoved(WangSet *wangSet)
+{
+    if (wangSet == mCurrentObject)
         setCurrentObject(nullptr);
 }
 

@@ -38,6 +38,7 @@ class QToolButton;
 
 namespace Tiled {
 
+class ObjectTemplate;
 class Terrain;
 
 namespace Custom {
@@ -48,6 +49,7 @@ namespace Internal {
 
 class AbstractTool;
 class BucketFillTool;
+class EditPolygonTool;
 class LayerDock;
 class MapDocument;
 class MapDocumentActionHandler;
@@ -55,8 +57,10 @@ class MapsDock;
 class MapView;
 class MiniMapDock;
 class ObjectsDock;
+class TemplatesDock;
 class PropertiesDock;
 class ReversingProxyModel;
+class ShapeFillTool;
 class StampBrush;
 class TerrainBrush;
 class TerrainDock;
@@ -65,8 +69,10 @@ class TileStamp;
 class TileStampManager;
 class ToolManager;
 class TreeViewComboBox;
-class UncheckableItemsModel;
+class ComboBoxProxyModel;
 class UndoDock;
+class WangBrush;
+class WangDock;
 class Zoomable;
 
 class MapEditor : public Editor
@@ -75,7 +81,7 @@ class MapEditor : public Editor
 
 public:
     explicit MapEditor(QObject *parent = nullptr);
-    ~MapEditor();
+    ~MapEditor() override;
 
     void saveState() override;
     void restoreState() override;
@@ -93,6 +99,8 @@ public:
 
     StandardActions enabledStandardActions() const override;
     void performStandardAction(StandardAction action) override;
+
+    void resetLayout() override;
 
     MapView *viewForDocument(MapDocument *mapDocument) const;
     MapView *currentMapView() const;
@@ -113,12 +121,17 @@ public slots:
     void flip(FlipDirection direction);
     void rotate(RotateDirection direction);
     void setRandom(bool value);
+    void setWangFill(bool value);
 
     void setStamp(const TileStamp &stamp);
     void selectTerrainBrush();
 
+    void selectWangBrush();
+
     void addExternalTilesets(const QStringList &fileNames);
     void filesDroppedOnTilesetDock(const QStringList &fileNames);
+
+    void updateTemplateInstances(const ObjectTemplate *objectTemplate);
 
 private slots:
     void currentWidgetChanged();
@@ -150,14 +163,16 @@ private:
     MapsDock *mMapsDock;
     UndoDock *mUndoDock;
     ObjectsDock *mObjectsDock;
+    TemplatesDock *mTemplatesDock;
     TilesetDock *mTilesetDock;
     TerrainDock *mTerrainDock;
+    WangDock *mWangDock;
     MiniMapDock* mMiniMapDock;
     Custom::PuzzleTypeDock* mPuzzleTypeDock;
     QDockWidget *mTileStampsDock;
 
     TreeViewComboBox *mLayerComboBox;
-    UncheckableItemsModel *mUncheckableProxyModel;
+    ComboBoxProxyModel *mComboBoxProxyModel;
     ReversingProxyModel *mReversingProxyModel;
 
     Zoomable *mZoomable;
@@ -166,7 +181,10 @@ private:
 
     StampBrush *mStampBrush;
     BucketFillTool *mBucketFillTool;
+    ShapeFillTool *mShapeFillTool;
     TerrainBrush *mTerrainBrush;
+    WangBrush *mWangBrush;
+    EditPolygonTool *mEditPolygonTool;
 
     QToolBar *mMainToolBar;
     QToolBar *mToolsToolBar;

@@ -30,8 +30,10 @@
 #include "mapscene.h"
 #include "objectgroup.h"
 #include "objectgroupitem.h"
+#include "objectselectiontool.h"
 #include "snaphelper.h"
 #include "tile.h"
+#include "toolmanager.h"
 #include "utils.h"
 
 #include <QApplication>
@@ -50,7 +52,6 @@ CreateObjectTool::CreateObjectTool(QObject *parent)
     , mObjectGroupItem(new ObjectGroupItem(mNewMapObjectGroup))
     , mNewMapObjectItem(nullptr)
     , mOverlayPolygonItem(nullptr)
-    , mTile(nullptr)
 {
     mObjectGroupItem->setZValue(10000); // same as the BrushItem
 }
@@ -89,9 +90,11 @@ void CreateObjectTool::keyPressed(QKeyEvent *event)
     case Qt::Key_Escape:
         if (mNewMapObjectItem) {
             cancelNewMapObject();
-            return;
+        } else {
+            // If we're not currently creating a new object, switch to object selection tool
+            toolManager()->selectTool(toolManager()->findTool<ObjectSelectionTool>());
         }
-        break;
+        return;
     }
 
     AbstractObjectTool::keyPressed(event);

@@ -33,6 +33,7 @@ namespace Utils {
 QString readableImageFormatsFilter();
 QString writableImageFormatsFilter();
 
+QStringList cleanFilterList(const QString &filter);
 bool fileNameMatchesNameFilter(const QString &fileName,
                                const QString &nameFilter);
 
@@ -71,6 +72,8 @@ QSize smallIconSize();
 bool isZoomInShortcut(QKeyEvent *event);
 bool isZoomOutShortcut(QKeyEvent *event);
 bool isResetZoomShortcut(QKeyEvent *event);
+
+void addFileManagerActions(QMenu &menu, const QString &fileName);
 
 } // namespace Utils
 } // namespace Tiled

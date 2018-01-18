@@ -30,7 +30,6 @@ class QGraphicsItem;
 namespace Tiled {
 namespace Internal {
 
-class MapObjectItem;
 class PointHandle;
 class SelectionRectangle;
 
@@ -43,10 +42,12 @@ class EditPolygonTool : public AbstractObjectTool
 
 public:
     explicit EditPolygonTool(QObject *parent = nullptr);
-    ~EditPolygonTool();
+    ~EditPolygonTool() override;
 
     void activate(MapScene *scene) override;
     void deactivate(MapScene *scene) override;
+
+    void keyPressed(QKeyEvent *event) override;
 
     void mouseEntered() override;
     void mouseMoved(const QPointF &pos,
@@ -57,13 +58,19 @@ public:
 
     void languageChanged() override;
 
+    bool hasSelectedHandles() const { return !mSelectedHandles.isEmpty(); }
+
+public slots:
+    void deleteNodes();
+
 private slots:
     void updateHandles();
     void objectsRemoved(const QList<MapObject *> &objects);
 
-    void deleteNodes();
     void joinNodes();
     void splitSegments();
+    void deleteSegment();
+    void extendPolyline();
 
 private:
     enum Mode {
@@ -71,6 +78,8 @@ private:
         Selecting,
         Moving
     };
+
+    void updateHover(const QPointF &pos);
 
     void setSelectedHandles(const QSet<PointHandle*> &handles);
     void setSelectedHandle(PointHandle *handle)
@@ -80,7 +89,7 @@ private:
 
     void startSelecting();
 
-    void startMoving();
+    void startMoving(const QPointF &pos, Qt::KeyboardModifiers modifiers);
     void updateMovingItems(const QPointF &pos,
                            Qt::KeyboardModifiers modifiers);
     void finishMoving(const QPointF &pos);
@@ -89,8 +98,9 @@ private:
 
     SelectionRectangle *mSelectionRectangle;
     bool mMousePressed;
+    PointHandle *mHoveredHandle;
     PointHandle *mClickedHandle;
-    MapObjectItem *mClickedObjectItem;
+    MapObject *mClickedObject;
     QVector<QPointF> mOldHandlePositions;
     QMap<MapObject*, QPolygonF> mOldPolygons;
     QPointF mAlignPosition;
@@ -100,7 +110,7 @@ private:
     Qt::KeyboardModifiers mModifiers;
 
     /// The list of handles associated with each selected map object
-    QMap<MapObjectItem*, QList<PointHandle*> > mHandles;
+    QMap<MapObject*, QList<PointHandle*> > mHandles;
     QSet<PointHandle*> mSelectedHandles;
 };
 

@@ -99,6 +99,7 @@ signals:
     /**
      * Emitted when files are dropped at the tileset dock.
      */
+    // todo: change to QList<QUrl>
     void localFilesDropped(const QStringList &paths);
 
 protected:
@@ -133,7 +134,6 @@ private slots:
     void refreshTilesetMenu();
 
     void swapTiles(Tile *tileA, Tile *tileB);
-    void changeSelectedMapObjectsTile(Tile *tile);
 
 private:
     void setCurrentTile(Tile *tile);
@@ -147,6 +147,7 @@ private:
     void onTilesetDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight);
 
     void onTabMoved(int from, int to);
+    void tabContextMenuRequested(const QPoint &pos);
 
     Tileset *currentTileset() const;
     TilesetView *currentTilesetView() const;
@@ -165,6 +166,7 @@ private:
     TilesetDocumentsFilterModel *mTilesetDocumentsFilterModel;
 
     QTabBar *mTabBar;
+    QStackedWidget *mSuperViewStack;
     QStackedWidget *mViewStack;
     QToolBar *mToolBar;
     Tile *mCurrentTile;
