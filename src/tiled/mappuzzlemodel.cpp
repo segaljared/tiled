@@ -104,9 +104,10 @@ bool MapPuzzleModel::setData(const QModelIndex &index, const QVariant &value, in
             const bool visible = (c == Qt::Checked);
             if (visible != mapObject->isVisible())
             {
-                QUndoCommand *command = new SetMapObjectVisible(mMapDocument,
-                                                                mapObject,
-                                                                visible);
+                QUndoCommand *command = new ChangeMapObject(mMapDocument,
+                                                            mapObject,
+                                                            MapObject::VisibleProperty,
+                                                            visible);
                 mMapDocument->undoStack()->push(command);
             }
             return true;

@@ -79,7 +79,7 @@
             "red" : "#FF0000",
             "green" : "#00FF00",
             "purple" : "#FF00FF",
-            "yellow" : "#FFFF00",
+            "yellow" : "#FFFF00"
         },
         "puzzlePartTypes" : [
             {

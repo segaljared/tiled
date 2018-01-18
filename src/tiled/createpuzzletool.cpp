@@ -7,6 +7,8 @@
 #include "puzzletypedock.h"
 #include "utils.h"
 
+#include <QKeyEvent>
+
 using namespace Tiled;
 using namespace Tiled::Custom;
 using namespace Tiled::Internal;
@@ -40,7 +42,7 @@ void CreatePuzzleTool::languageChanged()
     setShortcut(QKeySequence(tr("P")));
 }
 
-void CreatePuzzleTool::startNewMapObject(const QPointF &pos, ObjectGroup *objectGroup)
+bool CreatePuzzleTool::startNewMapObject(const QPointF &pos, ObjectGroup *objectGroup)
 {
     switch(mMode)
     {
@@ -51,16 +53,16 @@ void CreatePuzzleTool::startNewMapObject(const QPointF &pos, ObjectGroup *object
         {
             mPuzzleType = dialog.puzzleType();
             mSelectedObserver = mTypeDock->setPuzzleType(mPuzzleType);
-            CreateObjectTool::startNewMapObject(pos, objectGroup);
+            return CreateObjectTool::startNewMapObject(pos, objectGroup);
         }
         break;
     }
     case PuzzleToolMode::CreatePuzzlePart:
-        CreateObjectTool::startNewMapObject(pos, objectGroup);
-        break;
+        return CreateObjectTool::startNewMapObject(pos, objectGroup);
     default:
         break;
     }
+    return false;
 }
 
 MapObject *CreatePuzzleTool::createNewMapObject()

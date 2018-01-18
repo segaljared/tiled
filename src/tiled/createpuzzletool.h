@@ -39,7 +39,7 @@ public:
 
     void languageChanged() override;
 
-    void startNewMapObject(const QPointF &pos, ObjectGroup *objectGroup) override;
+    bool startNewMapObject(const QPointF &pos, ObjectGroup *objectGroup) override;
 
     void keyPressed(QKeyEvent *event) override;
 

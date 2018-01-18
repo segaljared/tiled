@@ -2,6 +2,7 @@
 #define MAPPUZZLEMODEL_H
 
 #include <QAbstractItemModel>
+#include <QIcon>
 #include "mapobject.h"
 
 namespace Tiled {

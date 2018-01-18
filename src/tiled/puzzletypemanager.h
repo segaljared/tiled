@@ -6,6 +6,7 @@
 
 #include <QObject>
 #include <QList>
+#include <QRegularExpression>
 
 namespace Tiled {
 

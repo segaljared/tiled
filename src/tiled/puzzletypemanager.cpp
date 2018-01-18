@@ -238,12 +238,12 @@ QString PuzzleTypeManager::addIdentifier(const QString &puzzleName, const QStrin
             {
                 QString potentialIdentifier(puzzleName + QLatin1String("_") + partType);
                 int count = 1;
-                while (identifiers[id].contains(potentialIdentifier))
+                while (identifiers[partType].contains(potentialIdentifier))
                 {
                     potentialIdentifier = puzzleName + QLatin1String("_") + partType + QString::number(count);
                     count++;
                 }
-                identifiers[id].append(potentialIdentifier);
+                identifiers[partType].append(potentialIdentifier);
                 identifierAdded = potentialIdentifier;
             }
             newEntryStream << identifierAdded;
