@@ -65,13 +65,18 @@ protected:
 
     MapScene *mapScene() const { return mMapScene; }
     ObjectGroup *currentObjectGroup() const;
-    QList<MapObjectItem*> objectItemsAt(QPointF pos) const;
-    MapObjectItem *topMostObjectItemAt(QPointF pos) const;
+    QList<MapObject*> mapObjectsAt(const QPointF &pos) const;
+    MapObject *topMostMapObjectAt(const QPointF &pos) const;
 
 private slots:
     void duplicateObjects();
     void removeObjects();
     void resetTileSize();
+    void saveSelectedObject();
+    void detachSelectedObjects();
+    void replaceObjectsWithTemplate();
+    void resetInstances();
+    void changeTile();
 
     void flipHorizontally();
     void flipVertically();
@@ -82,7 +87,7 @@ private slots:
     void lowerToBottom();
 
 private:
-    void showContextMenu(MapObjectItem *clickedObject,
+    void showContextMenu(MapObject *clickedObject,
                          QPoint screenPos);
 
     MapScene *mMapScene;

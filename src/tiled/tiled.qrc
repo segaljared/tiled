@@ -52,6 +52,8 @@
         <file>images/16x16/selection-subtract.png</file>
         <file>images/16x16/selection-intersect.png</file>
         <file>images/22x22/add.png</file>
+        <file>images/22x22/add-corner.png</file>
+        <file>images/22x22/add-edge.png</file>
         <file>images/22x22/remove.png</file>
         <file>images/22x22/stock-tool-clone.png</file>
         <file>images/22x22/stock-tool-eraser.png</file>
@@ -78,6 +80,7 @@
         <file>images/24x24/insert-ellipse.png</file>
         <file>images/24x24/insert-image.png</file>
         <file>images/24x24/insert-object.png</file>
+        <file>images/24x24/insert-point.png</file>
         <file>images/24x24/insert-polygon.png</file>
         <file>images/24x24/insert-polyline.png</file>
         <file>images/24x24/insert-rectangle.png</file>
@@ -120,6 +123,7 @@
         <file>images/dock-close@2x.png</file>
         <file>images/dock-restore@2x.png</file>
         <file>images/24x24/puzzle-piece.png</file>
+        <file>images/24x24/insert-template.png</file>
         <file>images/24x24/insert-text.png</file>
         <file>images/32x32/dice.png</file>
         <file>images/32x32/flip-horizontal.png</file>
@@ -128,10 +132,18 @@
         <file>images/32x32/rotate-right.png</file>
         <file>images/48x48/insert-rectangle.png</file>
         <file>images/48x48/insert-ellipse.png</file>
+        <file>images/48x48/insert-point.png</file>
         <file>images/48x48/insert-polyline.png</file>
         <file>images/48x48/insert-polygon.png</file>
         <file>images/48x48/tile-collision-editor.png</file>
+        <file>images/48x48/insert-template.png</file>
         <file>images/48x48/insert-text.png</file>
         <file>images/48x48/insert-image.png</file>
+        <file>images/24x24/wangtile.png</file>
+        <file>images/32x32/wangtile.png</file>
+        <file>images/24x24/wangtile-edit.png</file>
+        <file>images/24x24/animation-edit.png</file>
+        <file>images/22x22/rectangle-fill.png</file>
+        <file>images/22x22/ellipse-fill.png</file>
     </qresource>
 </RCC>

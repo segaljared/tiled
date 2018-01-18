@@ -28,7 +28,6 @@
 #include "savefile.h"
 #include "tilesetmanager.h"
 
-#include <QDebug>
 #include <QDir>
 #include <QFileInfo>
 #include <QSettings>
@@ -65,6 +64,7 @@ Preferences::Preferences()
     mSafeSavingEnabled = boolValue("SafeSavingEnabled", true);
     mReloadTilesetsOnChange = boolValue("ReloadTilesets", true);
     mStampsDirectory = stringValue("StampsDirectory");
+    mTemplatesDirectory = stringValue("TemplatesDirectory");
     mObjectTypesFile = stringValue("ObjectTypesFile");
     mSettings->endGroup();
 
@@ -85,8 +85,10 @@ Preferences::Preferences()
     mShowTilesetGrid = boolValue("ShowTilesetGrid", true);
     mLanguage = stringValue("Language");
     mUseOpenGL = boolValue("OpenGL");
+    mWheelZoomsByDefault = boolValue("WheelZoomsByDefault", true);
     mObjectLabelVisibility = static_cast<ObjectLabelVisiblity>
             (intValue("ObjectLabelVisibility", AllObjectLabels));
+    mLabelForHoveredObject = boolValue("LabelForHoveredObject", false);
 #if defined(Q_OS_MAC)
     mApplicationStyle = static_cast<ApplicationStyle>
             (intValue("ApplicationStyle", SystemDefaultStyle));
@@ -106,7 +108,8 @@ Preferences::Preferences()
 
     // Retrieve defined object types
     ObjectTypesSerializer objectTypesSerializer;
-    bool success = objectTypesSerializer.readObjectTypes(objectTypesFile(), mObjectTypes);
+    ObjectTypes objectTypes;
+    bool success = objectTypesSerializer.readObjectTypes(objectTypesFile(), objectTypes);
 
     // For backwards compatibilty, read in object types from settings
     if (!success) {
@@ -118,12 +121,13 @@ Preferences::Preferences()
         if (!names.isEmpty()) {
             const int count = qMin(names.size(), colors.size());
             for (int i = 0; i < count; ++i)
-                mObjectTypes.append(ObjectType(names.at(i), QColor(colors.at(i))));
+                objectTypes.append(ObjectType(names.at(i), QColor(colors.at(i))));
         }
     } else {
         mSettings->remove(QLatin1String("ObjectTypes"));
     }
 
+    Object::setObjectTypes(objectTypes);
 
     mSettings->beginGroup(QLatin1String("Automapping"));
     mAutoMapDrawing = boolValue("WhileDrawing");
@@ -186,6 +190,16 @@ void Preferences::setObjectLabelVisibility(ObjectLabelVisiblity visibility)
     mObjectLabelVisibility = visibility;
     mSettings->setValue(QLatin1String("Interface/ObjectLabelVisibility"), visibility);
     emit objectLabelVisibilityChanged(visibility);
+}
+
+void Preferences::setLabelForHoveredObject(bool enabled)
+{
+    if (mLabelForHoveredObject == enabled)
+        return;
+
+    mLabelForHoveredObject = enabled;
+    mSettings->setValue(QLatin1String("Interface/LabelForHoveredObject"), enabled);
+    emit labelForHoveredObjectChanged(enabled);
 }
 
 void Preferences::setApplicationStyle(ApplicationStyle style)
@@ -432,7 +446,7 @@ void Preferences::setUseOpenGL(bool useOpenGL)
 
 void Preferences::setObjectTypes(const ObjectTypes &objectTypes)
 {
-    mObjectTypes = objectTypes;
+    Object::setObjectTypes(objectTypes);
     emit objectTypesChanged();
 }
 
@@ -443,6 +457,9 @@ static QString lastPathKey(Preferences::FileType fileType)
     switch (fileType) {
     case Preferences::ObjectTypesFile:
         key.append(QLatin1String("ObjectTypes"));
+        break;
+    case Preferences::ObjectTemplateFile:
+        key.append(QLatin1String("ObjectTemplates"));
         break;
     case Preferences::ImageFile:
         key.append(QLatin1String("Images"));
@@ -608,7 +625,7 @@ void Preferences::setCheckForUpdates(bool on)
 void Preferences::setOpenLastFilesOnStartup(bool open)
 {
     if (mOpenLastFilesOnStartup == open)
-    	return;
+        return;
 
     mOpenLastFilesOnStartup = open;
     mSettings->setValue(QLatin1String("Startup/OpenLastFiles"), open);
@@ -642,6 +659,15 @@ void Preferences::setPluginEnabled(const QString &fileName, bool enabled)
 
     mSettings->setValue(QLatin1String("Plugins/Disabled"), disabledPlugins);
     mSettings->setValue(QLatin1String("Plugins/Enabled"), enabledPlugins);
+}
+
+void Preferences::setWheelZoomsByDefault(bool mode)
+{
+    if (mWheelZoomsByDefault == mode)
+        return;
+
+    mWheelZoomsByDefault = mode;
+    mSettings->setValue(QLatin1String("Interface/WheelZoomsByDefault"), mode);
 }
 
 bool Preferences::boolValue(const char *key, bool defaultValue) const
@@ -696,6 +722,25 @@ void Preferences::setStampsDirectory(const QString &stampsDirectory)
     mSettings->setValue(QLatin1String("Storage/StampsDirectory"), stampsDirectory);
 
     emit stampsDirectoryChanged(stampsDirectory);
+}
+
+QString Preferences::templatesDirectory() const
+{
+    if (mTemplatesDirectory.isEmpty())
+        return dataLocation() + QLatin1String("/templates");
+
+    return mTemplatesDirectory;
+}
+
+void Preferences::setTemplatesDirectory(const QString &templatesDirectory)
+{
+    if (mTemplatesDirectory == templatesDirectory)
+        return;
+
+    mTemplatesDirectory = templatesDirectory;
+    mSettings->setValue(QLatin1String("Storage/TemplatesDirectory"), templatesDirectory);
+
+    emit templatesDirectoryChanged(templatesDirectory);
 }
 
 QString Preferences::objectTypesFile() const

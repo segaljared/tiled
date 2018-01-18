@@ -34,15 +34,35 @@
 #include "tilelayer.h"
 #include "tileset.h"
 
-#include <cmath>
+#include <QtMath>
 
 using namespace Tiled;
 
-QSize IsometricRenderer::mapSize() const
+QRect IsometricRenderer::mapBoundingRect() const
 {
-    // Map width and height contribute equally in both directions
-    const int side = map()->height() + map()->width();
-    return QSize(side * map()->tileWidth() / 2,
+    if (!map()->infinite()) {
+        const int side = map()->height() + map()->width();
+        return QRect(0, 0, side * map()->tileWidth() / 2,
+                     side * map()->tileHeight() / 2);
+    }
+
+    QRect mapBounds;
+
+    LayerIterator iterator(map());
+    while (Layer *layer = iterator.next()) {
+        if (TileLayer *tileLayer = dynamic_cast<TileLayer*>(layer))
+            mapBounds = mapBounds.united(tileLayer->bounds());
+    }
+
+    if (mapBounds.size() == QSize(0, 0))
+        mapBounds.setSize(QSize(1, 1));
+
+    const int origin = mapBounds.x() + mapBounds.y();
+    const int side = mapBounds.width() + mapBounds.height();
+
+    return QRect(origin * map()->tileWidth() / 2,
+                 origin * map()->tileHeight() / 2,
+                 side * map()->tileWidth() / 2,
                  side * map()->tileHeight() / 2);
 }
 
@@ -68,6 +88,13 @@ QRectF IsometricRenderer::boundingRect(const MapObject *object) const
     if (object->shape() == MapObject::Text) {
         const QPointF topLeft = pixelToScreenCoords(object->position());
         return QRectF(topLeft, object->size());
+    } else if (object->shape() == MapObject::Point) {
+        const qreal extraSpace = qMax(objectLineWidth() / 2, qreal(1));
+        return shape(object).boundingRect()
+                            .adjusted(-extraSpace,
+                                      -extraSpace,
+                                      extraSpace,
+                                      extraSpace);
     } else if (!object->cell().isEmpty()) {
         const QSizeF objectSize { object->size() };
 
@@ -124,6 +151,9 @@ QPainterPath IsometricRenderer::shape(const MapObject *object) const
         case MapObject::Rectangle:
             path.addPolygon(pixelRectToScreenPolygon(object->bounds()));
             break;
+        case MapObject::Point:
+            path = pointShape(object);
+            break;
         case MapObject::Polygon:
         case MapObject::Polyline: {
             const QPointF &pos = object->position();
@@ -157,12 +187,17 @@ void IsometricRenderer::drawGrid(QPainter *painter, const QRectF &rect,
     r.adjust(-tileWidth / 2, -tileHeight / 2,
              tileWidth / 2, tileHeight / 2);
 
-    const int startX = qMax(qreal(0), screenToTileCoords(r.topLeft()).x());
-    const int startY = qMax(qreal(0), screenToTileCoords(r.topRight()).y());
-    const int endX = qMin(qreal(map()->width()),
-                          screenToTileCoords(r.bottomRight()).x());
-    const int endY = qMin(qreal(map()->height()),
-                          screenToTileCoords(r.bottomLeft()).y());
+    int startX = screenToTileCoords(r.topLeft()).x();
+    int startY = screenToTileCoords(r.topRight()).y();
+    int endX = screenToTileCoords(r.bottomRight()).x();
+    int endY = screenToTileCoords(r.bottomLeft()).y();
+
+    if (!map()->infinite()) {
+        startX = qMax(0, startX);
+        startY = qMax(0, startY);
+        endX = qMin(map()->width(), endX);
+        endY = qMin(map()->height(), endY);
+    }
 
     QPen gridPen = makeGridPen(painter->device(), gridColor);
     painter->setPen(gridPen);
@@ -204,8 +239,8 @@ void IsometricRenderer::drawTileLayer(QPainter *painter,
 
     // Determine the tile and pixel coordinates to start at
     QPointF tilePos = screenToTileCoords(rect.x(), rect.y());
-    QPoint rowItr = QPoint((int) std::floor(tilePos.x()),
-                           (int) std::floor(tilePos.y()));
+    QPoint rowItr = QPoint(qFloor(tilePos.x()),
+                           qFloor(tilePos.y()));
     QPointF startPos = tileToScreenCoords(rowItr);
     startPos.rx() -= tileWidth / 2;
     startPos.ry() += tileHeight;
@@ -243,14 +278,12 @@ void IsometricRenderer::drawTileLayer(QPainter *painter,
         QPoint columnItr = rowItr;
 
         for (int x = startPos.x(); x < rect.right(); x += tileWidth) {
-            if (layer->contains(columnItr)) {
-                const Cell &cell = layer->cellAt(columnItr);
-                if (!cell.isEmpty()) {
-                    Tile *tile = cell.tile();
-                    QSize size = tile ? tile->size() : map()->tileSize();
-                    renderer.render(cell, QPointF(x, (float)y / 2), size,
-                                    CellRenderer::BottomLeft);
-                }
+            const Cell &cell = layer->cellAt(columnItr);
+            if (!cell.isEmpty()) {
+                Tile *tile = cell.tile();
+                QSize size = tile ? tile->size() : map()->tileSize();
+                renderer.render(cell, QPointF(x, (qreal)y / 2), size,
+                                CellRenderer::BottomLeft);
             }
 
             // Advance to the next column
@@ -341,7 +374,7 @@ void IsometricRenderer::drawMapObject(QPainter *painter,
 
         pen.setJoinStyle(Qt::RoundJoin);
         pen.setCapStyle(Qt::RoundCap);
-        pen.setWidth(lineWidth);
+        pen.setWidthF(lineWidth);
 
         QPen colorPen(pen);
         colorPen.setColor(color);
@@ -355,8 +388,8 @@ void IsometricRenderer::drawMapObject(QPainter *painter,
         case MapObject::Ellipse: {
             QPolygonF polygon = pixelRectToScreenPolygon(object->bounds());
 
-            float tw = map()->tileWidth();
-            float th = map()->tileHeight();
+            qreal tw = map()->tileWidth();
+            qreal th = map()->tileHeight();
             QPointF transformScale(1, 1);
             if (tw > th)
                 transformScale = QPointF(1, th/tw);
@@ -402,6 +435,10 @@ void IsometricRenderer::drawMapObject(QPainter *painter,
             }
             break;
         }
+        case MapObject::Point:
+            painter->translate(pixelToScreenCoords(object->position()));
+            drawPointObject(painter, color);
+            break;
         case MapObject::Rectangle: {
             QPolygonF polygon = pixelRectToScreenPolygon(object->bounds());
             painter->drawPolygon(polygon);

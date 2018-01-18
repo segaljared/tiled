@@ -29,7 +29,7 @@
 #pragma once
 
 #include "properties.h"
-
+#include "objecttypes.h"
 
 namespace Tiled {
 
@@ -43,9 +43,12 @@ public:
         LayerType,
         MapObjectType,
         MapType,
+        ObjectTemplateType,
         TerrainType,
         TilesetType,
-        TileType
+        TileType,
+        WangSetType,
+        WangColorType
     };
 
     Object(TypeId typeId) : mTypeId(typeId) {}
@@ -58,7 +61,7 @@ public:
     /**
      * Virtual destructor.
      */
-    virtual ~Object() {}
+    virtual ~Object();
 
     /**
      * Returns the type of this object.
@@ -77,6 +80,12 @@ public:
     { mProperties = properties; }
 
     /**
+     * Clears all existing properties
+     */
+    void clearProperties ()
+    { mProperties.clear(); }
+
+    /**
      * Merges \a properties with the existing properties. Properties with the
      * same name will be overridden.
      *
@@ -90,6 +99,8 @@ public:
      */
     QVariant property(const QString &name) const
     { return mProperties.value(name); }
+
+    QVariant inheritedProperty(const QString &name) const;
 
     /**
      * Returns the value of the object's \a name property, as a string.
@@ -120,9 +131,15 @@ public:
 
     bool isPartOfTileset() const;
 
+    static void setObjectTypes(const ObjectTypes &objectTypes);
+    static const ObjectTypes &objectTypes()
+    { return mObjectTypes; }
+
 private:
     const TypeId mTypeId;
     Properties mProperties;
+
+    static ObjectTypes mObjectTypes;
 };
 
 
@@ -135,6 +152,8 @@ inline bool Object::isPartOfTileset() const
     case Object::TilesetType:
     case Object::TileType:
     case Object::TerrainType:
+    case Object::WangSetType:
+    case Object::WangColorType:
         return true;
     default:
         return false;

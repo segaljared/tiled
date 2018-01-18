@@ -36,11 +36,14 @@ class QToolBar;
 namespace Tiled {
 
 class Layer;
+class Tile;
+class ObjectTemplate;
 
 namespace Internal {
 
 class MapDocument;
 class MapScene;
+class ToolManager;
 
 /**
  * An abstraction of any kind of tool used to edit the map.
@@ -91,6 +94,12 @@ public:
     bool isEnabled() const;
     void setEnabled(bool enabled);
 
+    ToolManager *toolManager() const;
+
+    Tile *tile() const;
+
+    ObjectTemplate *objectTemplate() const;
+
     /**
      * Activates this tool. If the tool plans to add any items to the scene, it
      * probably wants to do it here.
@@ -133,6 +142,14 @@ public:
     virtual void mouseReleased(QGraphicsSceneMouseEvent *event) = 0;
 
     /**
+     * Called when a mouse button is pressed a second time on the scene, after
+     * a short interval.
+     *
+     * By default, this function calls mousePressed.
+     */
+    virtual void mouseDoubleClicked(QGraphicsSceneMouseEvent *event);
+
+    /**
      * Called when the user presses or releases a modifier key resulting
      * in a change of modifier status, and when the tool is enabled with
      * a modifier key pressed.
@@ -148,6 +165,8 @@ public:
 
 public slots:
     void setMapDocument(MapDocument *mapDocument);
+    void setTile(Tile *tile);
+    void setObjectTemplate(ObjectTemplate *objectTemplate);
 
 protected:
     /**
@@ -180,12 +199,17 @@ signals:
     void enabledChanged(bool enabled);
 
 private:
+    friend class ToolManager;
+
     QString mName;
     QIcon mIcon;
     QKeySequence mShortcut;
     QString mStatusInfo;
     QCursor mCursor;
     bool mEnabled;
+    ToolManager *mToolManager;
+    Tile *mTile;
+    ObjectTemplate *mObjectTemplate;
 
     MapDocument *mMapDocument;
 };
@@ -234,6 +258,34 @@ inline QCursor AbstractTool::cursor() const
 inline bool AbstractTool::isEnabled() const
 {
     return mEnabled;
+}
+
+/**
+ * Returns the ToolManager with which this tool is registered, if any.
+ */
+inline ToolManager *AbstractTool::toolManager() const
+{
+    return mToolManager;
+}
+
+inline Tile *AbstractTool::tile() const
+{
+    return mTile;
+}
+
+inline void AbstractTool::setTile(Tile *tile)
+{
+    mTile = tile;
+}
+
+inline ObjectTemplate *AbstractTool::objectTemplate() const
+{
+    return mObjectTemplate;
+}
+
+inline void AbstractTool::setObjectTemplate(ObjectTemplate *objectTemplate)
+{
+    mObjectTemplate = objectTemplate;
 }
 
 } // namespace Internal

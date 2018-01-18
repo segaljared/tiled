@@ -28,9 +28,12 @@
 #include "mapdocument.h"
 #include "mapscene.h"
 #include "painttilelayer.h"
+#include "staggeredrenderer.h"
 #include "stampactions.h"
 #include "tile.h"
 #include "tilestamp.h"
+#include "wangset.h"
+#include "wangfiller.h"
 
 #include <math.h>
 #include <QAction>
@@ -45,12 +48,16 @@ StampBrush::StampBrush(QObject *parent)
                        QIcon(QLatin1String(
                                ":images/22x22/stock-tool-clone.png")),
                        QKeySequence(tr("B")),
+                       nullptr,
                        parent)
     , mBrushBehavior(Free)
     , mIsRandom(false)
+    , mIsWangFill(false)
+    , mWangSet(nullptr)
     , mStampActions(new StampActions(this))
 {
     connect(mStampActions->random(), &QAction::toggled, this, &StampBrush::randomChanged);
+    connect(mStampActions->wangFill(), &QAction::toggled, this, &StampBrush::wangFillChanged);
 
     connect(mStampActions->flipHorizontal(), &QAction::triggered,
             [this]() { emit stampChanged(mStamp.flipped(FlipHorizontally)); });
@@ -64,6 +71,12 @@ StampBrush::StampBrush(QObject *parent)
 
 StampBrush::~StampBrush()
 {
+}
+
+void StampBrush::deactivate(MapScene *scene)
+{
+    mCaptureStampHelper.reset();
+    AbstractTileTool::deactivate(scene);
 }
 
 void StampBrush::tilePositionChanged(const QPoint &pos)
@@ -145,6 +158,7 @@ void StampBrush::mouseReleased(QGraphicsSceneMouseEvent *event)
             // allow going over different variations by repeatedly clicking
             updatePreview();
         }
+        break;
     default:
         // do nothing?
         break;
@@ -153,7 +167,7 @@ void StampBrush::mouseReleased(QGraphicsSceneMouseEvent *event)
 
 void StampBrush::modifiersChanged(Qt::KeyboardModifiers modifiers)
 {
-    if (mStamp.isEmpty())
+    if (mStamp.isEmpty() && !mIsWangFill)
         return;
 
     if (modifiers & Qt::ShiftModifier) {
@@ -235,7 +249,22 @@ void StampBrush::setStamp(const TileStamp &stamp)
 
 void StampBrush::populateToolBar(QToolBar *toolBar)
 {
-    mStampActions->populateToolBar(toolBar, mIsRandom);
+    mStampActions->populateToolBar(toolBar, mIsRandom, mIsWangFill);
+}
+
+void StampBrush::setWangSet(WangSet *wangSet)
+{
+    mWangSet = wangSet;
+
+    mMissingTilesets.clear();
+
+    if (!wangSet)
+        return;
+
+    const SharedTileset &tileset = wangSet->tileset()->sharedPointer();
+
+    if (!mapDocument() || !mapDocument()->map()->tilesets().contains(tileset))
+       mMissingTilesets.append(tileset);
 }
 
 void StampBrush::beginPaint()
@@ -253,8 +282,7 @@ void StampBrush::beginCapture()
         return;
 
     mBrushBehavior = Capture;
-
-    mCaptureStart = tilePosition();
+    mCaptureStampHelper.beginCapture(tilePosition());
 
     setStamp(TileStamp());
 }
@@ -266,54 +294,11 @@ void StampBrush::endCapture()
 
     mBrushBehavior = Free;
 
-    TileLayer *tileLayer = currentTileLayer();
-    Q_ASSERT(tileLayer);
-
-    // Intersect with the layer and translate to layer coordinates
-    QRect captured = capturedArea();
-    captured &= QRect(tileLayer->x(), tileLayer->y(),
-                      tileLayer->width(), tileLayer->height());
-
-    if (captured.isValid()) {
-        captured.translate(-tileLayer->x(), -tileLayer->y());
-        Map *map = tileLayer->map();
-        TileLayer *capture = tileLayer->copy(captured);
-        Map *stamp = new Map(map->orientation(),
-                             capture->width(),
-                             capture->height(),
-                             map->tileWidth(),
-                             map->tileHeight());
-
-        //gets if the relative stagger should be the same as the base layer
-        int staggerIndexOffSet;
-        if (tileLayer->map()->staggerAxis() == Map::StaggerX)
-            staggerIndexOffSet = captured.x() % 2;
-        else
-            staggerIndexOffSet = captured.y() % 2;
-
-        stamp->setStaggerAxis(map->staggerAxis());
-        stamp->setStaggerIndex((Map::StaggerIndex)((map->staggerIndex() + staggerIndexOffSet) % 2));
-
-        // Add tileset references to map
-        foreach (const SharedTileset &tileset, capture->usedTilesets())
-            stamp->addTileset(tileset);
-
-        stamp->addLayer(capture);
-
+    TileStamp stamp = mCaptureStampHelper.endCapture(currentTileLayer(), tilePosition());
+    if (!stamp.isEmpty())
         emit stampChanged(TileStamp(stamp));
-    } else {
+    else
         updatePreview();
-    }
-}
-
-QRect StampBrush::capturedArea() const
-{
-    QRect captured = QRect(mCaptureStart, tilePosition()).normalized();
-    if (captured.width() == 0)
-        captured.adjust(-1, 0, 1, 0);
-    if (captured.height() == 0)
-        captured.adjust(0, -1, 0, 1);
-    return captured;
 }
 
 /**
@@ -328,7 +313,8 @@ QRect StampBrush::capturedArea() const
  */
 QRegion StampBrush::doPaint(int flags)
 {
-    const TileLayer *preview = mPreviewLayer.data();
+    // local reference to avoid issues when member gets cleared
+    SharedTileLayer preview = mPreviewLayer;
     if (!preview)
         return QRegion();
 
@@ -339,21 +325,20 @@ QRegion StampBrush::doPaint(int flags)
     if (!tileLayer->isUnlocked())
         return QRegion();
 
-    if (!tileLayer->bounds().intersects(QRect(preview->x(),
-                                              preview->y(),
-                                              preview->width(),
-                                              preview->height())))
+    if (!tileLayer->rect().intersects(preview->bounds()) && !tileLayer->map()->infinite())
         return QRegion();
 
     PaintTileLayer *paint = new PaintTileLayer(mapDocument(),
                                                tileLayer,
                                                preview->x(),
                                                preview->y(),
-                                               preview);
+                                               preview.data());
 
     if (!mMissingTilesets.isEmpty()) {
-        for (const SharedTileset &tileset : mMissingTilesets)
-            new AddTileset(mapDocument(), tileset, paint);
+        for (const SharedTileset &tileset : mMissingTilesets) {
+            if (!mapDocument()->map()->tilesets().contains(tileset))
+                new AddTileset(mapDocument(), tileset, paint);
+        }
 
         mMissingTilesets.clear();
     }
@@ -372,35 +357,26 @@ struct PaintOperation {
     TileLayer *stamp;
 };
 
-/**
- * Draws the preview layer.
- * It tries to put at all given points a stamp of the current stamp at the
- * corresponding position.
- * It also takes care, that no overlaps appear.
- * So it will check for every point if it can place a stamp there without
- * overlap.
- */
-void StampBrush::drawPreviewLayer(const QVector<QPoint> &list)
+void StampBrush::drawPreviewLayer(const QVector<QPoint> &points)
 {
     mPreviewLayer.clear();
 
-    if (mStamp.isEmpty())
+    if (mStamp.isEmpty() && !mIsWangFill)
         return;
 
     if (mIsRandom) {
         if (mRandomCellPicker.isEmpty())
             return;
 
-        QRegion paintedRegion;
-        for (const QPoint p : list)
-            paintedRegion += QRect(p, QSize(1, 1));
+        QRect bounds;
+        for (const QPoint &p : points)
+            bounds |= QRect(p, p);
 
-        QRect bounds = paintedRegion.boundingRect();
-        SharedTileLayer preview(new TileLayer(QString(),
-                                              bounds.x(), bounds.y(),
-                                              bounds.width(), bounds.height()));
+        SharedTileLayer preview = SharedTileLayer::create(QString(),
+                                                          bounds.x(), bounds.y(),
+                                                          bounds.width(), bounds.height());
 
-        for (const QPoint &p : list) {
+        for (const QPoint &p : points) {
             const Cell &cell = mRandomCellPicker.pick();
             preview->setCell(p.x() - bounds.left(),
                              p.y() - bounds.top(),
@@ -408,15 +384,46 @@ void StampBrush::drawPreviewLayer(const QVector<QPoint> &list)
         }
 
         mPreviewLayer = preview;
-    } else {
-        mMissingTilesets.clear();
+    } else if (mIsWangFill) {
+        if (!mWangSet)
+            return;
 
+        const TileLayer *tileLayer = currentTileLayer();
+        if (!tileLayer)
+            return;
+
+        QRegion paintedRegion;
+        for (const QPoint &p : points)
+            paintedRegion += QRect(p, p);
+
+        QRect bounds = paintedRegion.boundingRect();
+        SharedTileLayer preview = SharedTileLayer::create(QString(),
+                                                          bounds.x(), bounds.y(),
+                                                          bounds.width(), bounds.height());
+
+        WangFiller wangFiller(mWangSet,
+                              dynamic_cast<StaggeredRenderer *>(mapDocument()->renderer()),
+                              mapDocument()->map()->staggerAxis());
+
+        for (const QPoint &p : points) {
+            Cell cell = wangFiller.findFittingCell(*tileLayer,
+                                                   *preview.data(),
+                                                   paintedRegion,
+                                                   p);
+
+            preview->setCell(p.x() - bounds.left(),
+                             p.y() - bounds.top(),
+                             cell);
+        }
+
+        mPreviewLayer = preview;
+    } else {
         QRegion paintedRegion;
         QVector<PaintOperation> operations;
         QHash<TileLayer *, QRegion> regionCache;
         QHash<TileLayer *, TileLayer *> shiftedCopies;
 
-        for (const QPoint &p : list) {
+        for (const QPoint &p : points) {
             const TileStampVariation variation = mStamp.randomVariation();
             mapDocument()->unifyTilesets(variation.map, mMissingTilesets);
 
@@ -493,9 +500,9 @@ void StampBrush::drawPreviewLayer(const QVector<QPoint> &list)
         }
 
         QRect bounds = paintedRegion.boundingRect();
-        SharedTileLayer preview(new TileLayer(QString(),
-                                              bounds.x(), bounds.y(),
-                                              bounds.width(), bounds.height()));
+        SharedTileLayer preview = SharedTileLayer::create(QString(),
+                                                          bounds.x(), bounds.y(),
+                                                          bounds.width(), bounds.height());
 
         for (const PaintOperation &op : operations)
             preview->merge(op.pos - bounds.topLeft(), op.stamp);
@@ -523,10 +530,10 @@ void StampBrush::updatePreview(QPoint tilePos)
 
     if (mBrushBehavior == Capture) {
         mPreviewLayer.clear();
-        tileRegion = capturedArea();
-    } else if (mStamp.isEmpty()) {
+        tileRegion = mCaptureStampHelper.capturedArea(tilePos);
+    } else if (mStamp.isEmpty() && !mIsWangFill) {
         mPreviewLayer.clear();
-        tileRegion = QRect(tilePos, QSize(1, 1));
+        tileRegion = QRect(tilePos, tilePos);
     } else {
         switch (mBrushBehavior) {
         case LineStartSet:
@@ -542,7 +549,7 @@ void StampBrush::updatePreview(QPoint tilePos)
             // while finding the mid point, there is no need to show
             // the (maybe bigger than 1x1) stamp
             mPreviewLayer.clear();
-            tileRegion = QRect(tilePos, QSize(1, 1));
+            tileRegion = QRect(tilePos, tilePos);
             break;
         case Line:
         case Free:
@@ -564,6 +571,26 @@ void StampBrush::setRandom(bool value)
 
     mIsRandom = value;
 
+    if (mIsRandom) {
+        mIsWangFill = false;
+        mStampActions->wangFill()->setChecked(false);
+    }
+
     updateRandomList();
+    updatePreview();
+}
+
+void StampBrush::setWangFill(bool value)
+{
+    if (mIsWangFill == value)
+        return;
+
+    mIsWangFill = value;
+
+    if (mIsWangFill) {
+        mIsRandom = false;
+        mStampActions->random()->setChecked(false);
+    }
+
     updatePreview();
 }

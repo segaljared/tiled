@@ -22,17 +22,18 @@
 
 #include "document.h"
 #include "tileset.h"
+#include "tilesetformat.h"
 
 #include <QList>
 
 namespace Tiled {
 
-class TilesetFormat;
-
 namespace Internal {
 
 class MapDocument;
 class TilesetTerrainModel;
+class TilesetWangSetModel;
+class WangColorModel;
 
 /**
  * Represents an editable tileset.
@@ -43,7 +44,7 @@ class TilesetDocument : public Document
 
 public:
     TilesetDocument(const SharedTileset &tileset, const QString &fileName = QString());
-    ~TilesetDocument();
+    ~TilesetDocument() override;
 
     bool save(const QString &fileName, QString *error = nullptr) override;
 
@@ -60,6 +61,9 @@ public:
 
     FileFormat *writerFormat() const override;
     void setWriterFormat(TilesetFormat *format);
+
+    TilesetFormat *exportFormat() const override;
+    void setExportFormat(FileFormat *format) override;
 
     QString displayName() const override;
 
@@ -85,9 +89,13 @@ public:
     QList<Object*> currentObjects() const override;
 
     TilesetTerrainModel *terrainModel() const { return mTerrainModel; }
+    TilesetWangSetModel *wangSetModel() const { return mWangSetModel; }
+
+    WangColorModel *wangColorModel() const { return mWangColorModel; }
+    void setWangColorModel(WangColorModel *wangColorModel) { mWangColorModel = wangColorModel; }
 
     void setTileType(Tile *tile, const QString &type);
-    void setTileImage(Tile *tile, const QPixmap &image, const QString &source);
+    void setTileImage(Tile *tile, const QPixmap &image, const QUrl &source);
 
 signals:
     /**
@@ -110,6 +118,8 @@ signals:
      * All the \a tiles need to be from the same tileset.
      */
     void tileTerrainChanged(const QList<Tile*> &tiles);
+
+    void tileWangSetChanged(const QList<Tile*> &tiles);
 
     /**
      * Emitted when the terrain probability of a tile changed.
@@ -138,14 +148,18 @@ private slots:
     void onPropertiesChanged(Object *object);
 
     void onTerrainRemoved(Terrain *terrain);
+    void onWangSetRemoved(WangSet *wangSet);
 
 private:
     SharedTileset mTileset;
     QList<MapDocument*> mMapDocuments;
 
     TilesetTerrainModel *mTerrainModel;
+    TilesetWangSetModel *mWangSetModel;
+    WangColorModel *mWangColorModel;
 
     QList<Tile*> mSelectedTiles;
+    QPointer<TilesetFormat> mExportFormat;
 };
 
 

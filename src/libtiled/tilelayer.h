@@ -31,7 +31,6 @@
 
 #include "tiled_global.h"
 
-#include "map.h"
 #include "layer.h"
 #include "tiled.h"
 #include "tile.h"
@@ -66,19 +65,13 @@ public:
     Cell() :
         _tileset(nullptr),
         _tileId(-1),
-        _flippedHorizontally(false),
-        _flippedVertically(false),
-        _flippedAntiDiagonally(false),
-        _rotatedHexagonal120(false)
+        _flags(0)
     {}
 
     explicit Cell(Tile *tile) :
         _tileset(tile ? tile->tileset() : nullptr),
         _tileId(tile ? tile->id() : -1),
-        _flippedHorizontally(false),
-        _flippedVertically(false),
-        _flippedAntiDiagonally(false),
-        _rotatedHexagonal120(false)
+        _flags(0)
     {}
 
     bool isEmpty() const { return _tileset == nullptr; }
@@ -87,36 +80,31 @@ public:
     {
         return _tileset == other._tileset
                 && _tileId == other._tileId
-                && _flippedHorizontally == other._flippedHorizontally
-                && _flippedVertically == other._flippedVertically
-                && _flippedAntiDiagonally == other._flippedAntiDiagonally
-                && _rotatedHexagonal120 == other._rotatedHexagonal120;
+                && _flags == other._flags;
     }
 
     bool operator != (const Cell &other) const
     {
         return _tileset != other._tileset
                 || _tileId != other._tileId
-                || _flippedHorizontally != other._flippedHorizontally
-                || _flippedVertically != other._flippedVertically
-                || _flippedAntiDiagonally != other._flippedAntiDiagonally
-                || _rotatedHexagonal120 != other._rotatedHexagonal120;
+                || _flags != other._flags;
     }
 
     Tileset *tileset() const { return _tileset; }
     int tileId() const { return _tileId; }
 
-    bool flippedHorizontally() const { return _flippedHorizontally; }
-    bool flippedVertically() const { return _flippedVertically; }
-    bool flippedAntiDiagonally() const { return _flippedAntiDiagonally; }
+    bool flippedHorizontally() const { return f._flippedHorizontally; }
+    bool flippedVertically() const { return f._flippedVertically; }
+    bool flippedAntiDiagonally() const { return f._flippedAntiDiagonally; }
+    bool rotatedHexagonal120() const { return f._rotatedHexagonal120; }
 
-    bool rotatedHexagonal120() const { return _rotatedHexagonal120; }
+    void setFlippedHorizontally(bool v) { f._flippedHorizontally = v; }
+    void setFlippedVertically(bool v) { f._flippedVertically = v; }
+    void setFlippedAntiDiagonally(bool v) { f._flippedAntiDiagonally = v; }
+    void setRotatedHexagonal120(bool v) { f._rotatedHexagonal120 = v; }
 
-    void setFlippedHorizontally(bool f) { _flippedHorizontally = f; }
-    void setFlippedVertically(bool f) { _flippedVertically = f; }
-    void setFlippedAntiDiagonally(bool f) { _flippedAntiDiagonally = f; }
-
-    void setRotatedHexagonal120(bool f) { _rotatedHexagonal120 = f; }
+    bool checked() const { return f._checked; }
+    void setChecked(bool checked) { f._checked = checked; }
 
     Tile *tile() const;
     void setTile(Tile *tile);
@@ -126,11 +114,19 @@ public:
 private:
     Tileset *_tileset;
     int _tileId;
-    bool _flippedHorizontally;
-    bool _flippedVertically;
-    bool _flippedAntiDiagonally;
 
-    bool _rotatedHexagonal120;
+    struct Flags {
+        bool _flippedHorizontally : 1;
+        bool _flippedVertically : 1;
+        bool _flippedAntiDiagonally : 1;
+        bool _rotatedHexagonal120 : 1;
+        bool _checked : 1;
+    };
+
+    union {
+        unsigned _flags;
+        Flags f;
+    };
 };
 
 inline Tile *Cell::tile() const
@@ -161,7 +157,7 @@ inline bool Cell::refersTile(const Tile *tile) const
 /**
  * A Chunk is a grid of cells of size CHUNK_SIZExCHUNK_SIZE.
  */
-class Chunk
+class TILEDSHARED_EXPORT Chunk
 {
 public:
     Chunk() :
@@ -349,7 +345,9 @@ public:
     /**
      * Returns the bounds of this layer.
      */
-    QRect bounds() const { return QRect(mX, mY, mWidth, mHeight); }
+    QRect bounds() const { return mBounds.translated(mX, mY); }
+
+    QRect rect() const { return QRect(mX, mY, mWidth, mHeight); }
 
     QMargins drawMargins() const;
 
@@ -505,6 +503,8 @@ public:
     const_iterator begin() const { return const_iterator(mChunks.begin(), mChunks.end()); }
     const_iterator end() const { return const_iterator(mChunks.end(), mChunks.end()); }
 
+    QVector<QRect> sortedChunksToWrite() const;
+
 protected:
     TileLayer *initializeClone(TileLayer *clone) const;
 
@@ -513,6 +513,7 @@ private:
     int mHeight;
     Cell mEmptyCell;
     QHash<QPoint, Chunk> mChunks;
+    QRect mBounds;
     mutable QSet<SharedTileset> mUsedTilesets;
     mutable bool mUsedTilesetsDirty;
 };
@@ -568,9 +569,6 @@ inline void TileLayer::setSize(const QSize &size)
     mHeight = size.height();
 }
 
-/**
- * Returns whether (x, y) is inside this map layer.
- */
 inline bool TileLayer::contains(int x, int y) const
 {
     return x >= 0 && y >= 0 && x < mWidth && y < mHeight;
@@ -607,7 +605,6 @@ inline QRegion TileLayer::region() const
  */
 inline const Cell &TileLayer::cellAt(int x, int y) const
 {
-    Q_ASSERT(contains(x, y));
     if (const Chunk *chunk = findChunk(x, y))
         return chunk->cellAt(x & CHUNK_MASK, y & CHUNK_MASK);
     else

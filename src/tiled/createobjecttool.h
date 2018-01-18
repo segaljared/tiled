@@ -37,7 +37,7 @@ class CreateObjectTool : public AbstractObjectTool
 
 public:
     CreateObjectTool(QObject *parent = nullptr);
-    ~CreateObjectTool();
+    ~CreateObjectTool() override;
 
     void activate(MapScene *scene) override;
     void deactivate(MapScene *scene) override;
@@ -48,13 +48,6 @@ public:
                     Qt::KeyboardModifiers modifiers) override;
     void mousePressed(QGraphicsSceneMouseEvent *event) override;
     void mouseReleased(QGraphicsSceneMouseEvent *event) override;
-
-public slots:
-    /**
-     * Sets the tile that will be used when the creation mode is
-     * CreateTileObjects.
-     */
-    void setTile(Tile *tile) { mTile = tile; }
 
 protected:
     virtual void mouseMovedWhileCreatingObject(const QPointF &pos,
@@ -73,7 +66,6 @@ protected:
     ObjectGroupItem *mObjectGroupItem;
     MapObjectItem *mNewMapObjectItem;
     MapObjectItem *mOverlayPolygonItem;
-    Tile *mTile;
 };
 
 } // namespace Internal
